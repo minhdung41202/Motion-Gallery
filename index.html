@@ -41,11 +41,11 @@
     border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; margin-top: 8px; }
 
   .curve-box { margin-top: 8px; background: var(--panel-2); border: 1px solid var(--line);
-    border-radius: 12px; padding: 16px; touch-action: none; }
+    border-radius: 12px; padding: 20px; touch-action: none; }
   .curve-box svg { display: block; width: 100%; height: auto; aspect-ratio: 1 / 1; overflow: visible; }
-  .curve-frame { fill: none; stroke: var(--line); }
   .curve-path { fill: none; stroke: var(--txt); stroke-width: 2.5; stroke-linecap: round; }
-  .curve-arm { stroke: var(--muted); stroke-dasharray: 1 5; stroke-linecap: round; }
+  .curve-arm { stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 1 6; stroke-linecap: round; opacity: .8; }
+  .curve-anchor { fill: var(--muted); }
   .curve-handle { fill: var(--txt); stroke: var(--bg); stroke-width: 2; cursor: grab; }
   .curve-handle:active { cursor: grabbing; }
 
@@ -230,14 +230,14 @@ function curveGraph(host, get, onChange) {
   const el = (tag, cls) => { const n = document.createElementNS(NS, tag); if (cls) n.setAttribute("class", cls); return n; };
   const svg = el("svg");
   svg.setAttribute("viewBox", `-25 ${-((YMAX - 1) * 100)} 150 ${100 * (YMAX - YMIN)}`);
-  svg.setAttribute("width", "120"); svg.setAttribute("height", "120");
-  const frame = el("rect", "curve-frame");
-  frame.setAttribute("x", 0); frame.setAttribute("y", 0); frame.setAttribute("width", 100); frame.setAttribute("height", 100);
   const arm1 = el("line", "curve-arm"), arm2 = el("line", "curve-arm");
   const path = el("path", "curve-path");
+  const anchorA = el("circle", "curve-anchor"), anchorB = el("circle", "curve-anchor");
+  anchorA.setAttribute("cx", 0); anchorA.setAttribute("cy", 100); anchorA.setAttribute("r", 3);
+  anchorB.setAttribute("cx", 100); anchorB.setAttribute("cy", 0); anchorB.setAttribute("r", 3);
   const h1 = el("circle", "curve-handle"), h2 = el("circle", "curve-handle");
-  h1.setAttribute("r", 6); h2.setAttribute("r", 6);
-  svg.append(frame, arm1, arm2, path, h1, h2);
+  h1.setAttribute("r", 7); h2.setAttribute("r", 7);
+  svg.append(arm1, arm2, path, anchorA, anchorB, h1, h2);
   host.appendChild(svg);
 
   const toSvg = (x, y) => [x * 100, (1 - y) * 100];
@@ -633,8 +633,7 @@ const PRESETS = [
       { t: "num", label: "Tilt Z", key: "tiltZ", min: -90, max: 90, step: 1 },
       { t: "num", label: "Depth fade %", key: "fade", min: 0, max: 100, step: 1 },
       { t: "num", label: "Corner radius", key: "corner", min: 0, max: 300, step: 2 },
-      { t: "num", label: "Loop seconds", key: "loop", min: 3, max: 40, step: 0.5 },
-      { t: "curve" },
+      { t: "curve", dur: { label: "Duration", key: "loop", min: 3, max: 40, step: 0.5 } },
     ],
   },
   {
@@ -656,9 +655,8 @@ const PRESETS = [
       { t: "num", label: "Tilt X", key: "tiltX", min: -60, max: 60, step: 1 },
       { t: "num", label: "Depth fade %", key: "fade", min: 0, max: 100, step: 1 },
       { t: "num", label: "Corner radius", key: "corner", min: 0, max: 400, step: 4 },
-      { t: "num", label: "Loop seconds", key: "loop", min: 3, max: 40, step: 0.5 },
       { t: "num", label: "Step hold", key: "hold", min: 0, max: 3, step: 0.05 },
-      { t: "curve" },
+      { t: "curve", dur: { label: "Duration", key: "loop", min: 3, max: 40, step: 0.5 } },
     ],
   },
 ];
@@ -774,6 +772,22 @@ function buildPanel() {
       const box = document.createElement("div"); box.className = "curve-box"; left.appendChild(box);
       const redraw = curveGraph(box, () => CFG.curve, (next) => { CFG.curve = next; engine.patch(CFG); });
       s.onchange = () => { CFG.curve = CURVES[+s.value].p.slice(); engine.patch(CFG); redraw(); };
+
+      if (f.dur) {
+        const d = f.dur;
+        const row = document.createElement("div"); row.className = "row dur";
+        const lab = document.createElement("label"); lab.textContent = d.label;
+        const rng = document.createElement("input");
+        rng.type = "range"; rng.min = d.min; rng.max = d.max; rng.step = d.step;
+        rng.value = CFG[d.key]; rng.dataset.key = d.key;
+        const num = document.createElement("input");
+        num.type = "number"; num.min = d.min; num.max = d.max; num.step = d.step;
+        num.value = shown(CFG[d.key], d.step); num.dataset.key = d.key; num.dataset.step = d.step;
+        rng.oninput = () => apply(d.key, parseFloat(rng.value));
+        num.onchange = () => apply(d.key, clamp(parseFloat(num.value) || d.min, d.min, d.max));
+        row.append(lab, rng, num);
+        box.appendChild(row);
+      }
     }
   }
 }
