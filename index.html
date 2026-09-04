@@ -363,6 +363,7 @@ class Engine {
     this.quad = new THREE.PlaneGeometry(1, 1);
     this.tex = new Map();
     this.ratio = new Map();
+    this._center = 0;
     this._p = new THREE.Vector3();
     this._q = new THREE.Quaternion();
     this._setCurve();
@@ -437,7 +438,12 @@ class Engine {
     this.lay();
   }
 
-  lay() { this.cfg.shape === "sphere" ? this._laySphere() : this._layRing(); }
+  lay() {
+    if (this.cfg.shape === "sphere") return this._laySphere();
+    if (this.cfg.shape === "flow") return this._layFlow(this._center);
+    if (this.cfg.shape === "grid") return this._layGrid();
+    return this._layRing();
+  }
 
   _layRing() {
     const c = this.cfg, n = this.tiles.length;
@@ -480,6 +486,44 @@ class Engine {
     }
   }
 
+  // Cover Flow: a line of tiles: the one nearest `center` sits flat and forward,
+  // its neighbours pivot outward and recede — the classic iTunes-coverflow layout.
+  _layFlow(center) {
+    const c = this.cfg, n = this.tiles.length;
+    if (!n) return;
+    for (let i = 0; i < n; i++) {
+      const tile = this.tiles[i];
+      let off = i - center;
+      off = ((off % n) + n) % n;
+      if (off > n / 2) off -= n;                    // shortest signed distance around the loop
+      const dir = Math.sign(off), mag = Math.abs(off), ramp = Math.min(mag, 1);
+      tile.position.set(off * c.flowGap, 0, -ramp * c.flowDepth - Math.max(0, mag - 1) * c.flowDepth * 0.12);
+      tile.rotation.set(0, dir * ramp * THREE.MathUtils.degToRad(c.flowAngle), 0);
+      if (tile.geometry !== this.quad) tile.geometry = this.quad;
+      this._fit(tile, i);
+      tile.scale.multiplyScalar(1 - ramp * (1 - c.flowSideScale / 100));
+    }
+  }
+
+  // Grid Reveal: a static grid; each tile fades/scales in on its own looping phase,
+  // offset by its row+column so a wave sweeps across the wall.
+  _layGrid() {
+    const c = this.cfg, n = this.tiles.length;
+    if (!n) return;
+    const cols = Math.max(1, Math.round(Math.sqrt(n * 1.4)));
+    const rows = Math.ceil(n / cols);
+    const cellW = c.tileSize + c.gridGap, cellH = c.tileSize * 1.2 + c.gridGap;
+    for (let i = 0; i < n; i++) {
+      const tile = this.tiles[i];
+      const row = Math.floor(i / cols), col = i % cols;
+      tile.position.set((col - (cols - 1) / 2) * cellW, ((rows - 1) / 2 - row) * cellH, 0);
+      tile.rotation.set(0, 0, 0);
+      if (tile.geometry !== this.quad) tile.geometry = this.quad;
+      this._fit(tile, i);
+      tile.userData.gridPhase = (row + col) / Math.max(1, rows + cols - 2);
+    }
+  }
+
   _fit(tile, i) {
     const c = this.cfg;
     const r = this.ratio.get(this._src(i)) ?? 1.25;
@@ -510,6 +554,30 @@ class Engine {
   tick(time) {
     const c = this.cfg, n = Math.max(1, this.tiles.length);
     for (const t of this.tiles) t.visible = true;
+
+    if (c.shape === "flow") {
+      this.spinner.rotation.set(0, 0, 0);
+      const stepDur = c.loop / n, hold = Math.max(0, c.hold || 0), slot = stepDur + hold;
+      const step = Math.floor(time / slot);
+      const into = sat((time - step * slot) / stepDur);
+      this._center = (step + this.curve(into)) * c.direction;
+      this._layFlow(this._center);
+      this._fade();
+      return;
+    }
+    if (c.shape === "grid") {
+      this.spinner.rotation.set(0, 0, 0);
+      const cycle = time / Math.max(0.5, c.loop);
+      for (const tile of this.tiles) {
+        const local = (((cycle + (tile.userData.gridPhase || 0) * c.gridStagger) % 1) + 1) % 1;
+        const e = this.curve(1 - Math.abs(local * 2 - 1));
+        const u = tile.material.uniforms;
+        u.uFade.value = 1 - e; u.uBack.value.set(0, 0, 0);
+        const s = 0.55 + 0.45 * e, r = u.uRatio.value;
+        tile.scale.set(c.tileSize * s, c.tileSize * r * s, 1);
+      }
+      return;
+    }
 
     let angle;
     if (c.mode === "steps") {
@@ -664,6 +732,44 @@ const PRESETS = [
       { t: "num", label: "Corner radius", key: "corner", min: 0, max: 400, step: 4 },
       { t: "num", label: "Step hold", key: "hold", min: 0, max: 3, step: 0.05 },
       { t: "curve", dur: { label: "Duration", key: "loop", min: 3, max: 40, step: 0.5 } },
+    ],
+  },
+  {
+    id: "flow", label: "Cover Flow",
+    cfg: { ...BASE, shape: "flow", count: 14, tileSize: 620, dist: 3400, lens: 100,
+      loop: 12, hold: 0.4, fade: 45, corner: 14, direction: 1,
+      flowAngle: 58, flowGap: 780, flowDepth: 900, flowSideScale: 74, curve: CURVES[1].p },
+    fields: [
+      { t: "seg", label: "Direction", key: "direction", opts: [[1, "Forward"], [-1, "Reverse"]] },
+      { t: "seg", label: "Mirror", key: "mirror", opts: [[false, "Off"], [true, "On"]] },
+      { t: "num", label: "Covers", key: "count", min: 3, max: 60, step: 1 },
+      { t: "num", label: "Tile size", key: "tileSize", min: 200, max: 1600, step: 10 },
+      { t: "num", label: "Gap", key: "flowGap", min: 200, max: 1600, step: 10 },
+      { t: "num", label: "Side angle", key: "flowAngle", min: 0, max: 85, step: 1 },
+      { t: "num", label: "Side depth", key: "flowDepth", min: 0, max: 2000, step: 20 },
+      { t: "num", label: "Side scale %", key: "flowSideScale", min: 30, max: 100, step: 1 },
+      { t: "num", label: "Camera distance", key: "dist", min: 800, max: 20000, step: 20 },
+      { t: "num", label: "Lens", key: "lens", min: 30, max: 260, step: 1 },
+      { t: "num", label: "Depth fade %", key: "fade", min: 0, max: 100, step: 1 },
+      { t: "num", label: "Corner radius", key: "corner", min: 0, max: 300, step: 2 },
+      { t: "num", label: "Step hold", key: "hold", min: 0, max: 3, step: 0.05 },
+      { t: "curve", dur: { label: "Duration", key: "loop", min: 3, max: 40, step: 0.5 } },
+    ],
+  },
+  {
+    id: "grid", label: "Grid Reveal",
+    cfg: { ...BASE, shape: "grid", count: 24, tileSize: 460, dist: 3200, lens: 100,
+      loop: 10, fade: 0, corner: 14, gridGap: 40, gridStagger: 1.2, curve: CURVES[2].p },
+    fields: [
+      { t: "seg", label: "Mirror", key: "mirror", opts: [[false, "Off"], [true, "On"]] },
+      { t: "num", label: "Tiles", key: "count", min: 4, max: 80, step: 1 },
+      { t: "num", label: "Tile size", key: "tileSize", min: 150, max: 1200, step: 10 },
+      { t: "num", label: "Gap", key: "gridGap", min: 0, max: 300, step: 5 },
+      { t: "num", label: "Stagger", key: "gridStagger", min: 0, max: 3, step: 0.05 },
+      { t: "num", label: "Camera distance", key: "dist", min: 800, max: 20000, step: 20 },
+      { t: "num", label: "Lens", key: "lens", min: 30, max: 260, step: 1 },
+      { t: "num", label: "Corner radius", key: "corner", min: 0, max: 300, step: 2 },
+      { t: "curve", dur: { label: "Cycle seconds", key: "loop", min: 2, max: 30, step: 0.5 } },
     ],
   },
 ];
