@@ -291,12 +291,14 @@ function tileMaterial() {
     transparent: false,
     side: THREE.DoubleSide,
     uniforms: {
-      uTex:   { value: null },
-      uCorner:{ value: 0 },
-      uRatio: { value: 1 },
-      uFade:  { value: 0 },
-      uMirror:{ value: 0 },
-      uBack:  { value: new THREE.Color(0, 0, 0) },
+      uTex:     { value: null },
+      uTexBack: { value: null },
+      uUseBack: { value: 0 },
+      uCorner:  { value: 0 },
+      uRatio:   { value: 1 },
+      uFade:    { value: 0 },
+      uMirror:  { value: 0 },
+      uBack:    { value: new THREE.Color(0, 0, 0) },
     },
     vertexShader: `
       varying vec2 vUv;
@@ -304,8 +306,8 @@ function tileMaterial() {
     `,
     fragmentShader: `
       precision highp float;
-      uniform sampler2D uTex;
-      uniform float uCorner, uRatio, uFade, uMirror;
+      uniform sampler2D uTex, uTexBack;
+      uniform float uUseBack, uCorner, uRatio, uFade, uMirror;
       uniform vec3 uBack;
       varying vec2 vUv;
 
@@ -322,8 +324,12 @@ function tileMaterial() {
           vec2 ext = vec2(0.5, uRatio * 0.5);
           if (sdBox(pt, ext, uCorner) > 0.0) discard;
         }
-        vec2 uv = vec2(uMirror > 0.5 ? 1.0 - vUv.x : vUv.x, vUv.y);
-        vec4 texel = texture2D(uTex, uv);
+        // gl_FrontFacing tells us which side of the tile the camera is looking at.
+        // Cards flip on a horizontal hinge (rotate about X), so the back face reads
+        // top-for-bottom — correct that with a vertical flip, independent of uMirror.
+        bool onBack = uUseBack > 0.5 && !gl_FrontFacing;
+        vec2 uv = vec2(uMirror > 0.5 ? 1.0 - vUv.x : vUv.x, onBack ? 1.0 - vUv.y : vUv.y);
+        vec4 texel = onBack ? texture2D(uTexBack, uv) : texture2D(uTex, uv);
         if (texel.a < 0.5) discard;
         gl_FragColor = vec4(mix(encode(texel.rgb), uBack, uFade), texel.a);
       }
@@ -421,6 +427,12 @@ class Engine {
     return this.sources[((i % n) + n) % n];
   }
 
+  // for two-sided cards, pair each tile with a different source halfway around the list
+  _srcBack(i) {
+    const n = this.sources.length;
+    return n ? this._src(i + Math.floor(n / 2)) : "";
+  }
+
   build() {
     const want = clamp(Math.round(this.cfg.count), 2, 400);
     while (this.tiles.length < want) {
@@ -430,10 +442,16 @@ class Engine {
     while (this.tiles.length > want) {
       const m = this.tiles.pop(); this.spinner.remove(m); m.material.dispose();
     }
+    const twoSided = this.cfg.shape === "cardflip";
     for (let i = 0; i < this.tiles.length; i++) {
       const tx = this.tex.get(this._src(i)) || null;
       const u = this.tiles[i].material.uniforms;
       if (u.uTex.value !== tx) { u.uTex.value = tx; this.tiles[i].material.needsUpdate = true; }
+      u.uUseBack.value = twoSided ? 1 : 0;
+      if (twoSided) {
+        const bx = this.tex.get(this._srcBack(i)) || tx;
+        if (u.uTexBack.value !== bx) { u.uTexBack.value = bx; this.tiles[i].material.needsUpdate = true; }
+      }
     }
     this.lay();
   }
@@ -442,6 +460,7 @@ class Engine {
     if (this.cfg.shape === "sphere") return this._laySphere();
     if (this.cfg.shape === "flow") return this._layFlow(this._center);
     if (this.cfg.shape === "grid") return this._layGrid();
+    if (this.cfg.shape === "cardflip") return this._layCardFlip(this._center);
     return this._layRing();
   }
 
@@ -505,6 +524,27 @@ class Engine {
     }
   }
 
+  // Card Flip: a vertical rolodex stack. The card nearest `center` sits flat and
+  // large; as it passes it rotates 180° on X, revealing a different paired image
+  // on its back (handled by the shader's gl_FrontFacing test), then recedes.
+  _layCardFlip(center) {
+    const c = this.cfg, n = this.tiles.length;
+    if (!n) return;
+    for (let i = 0; i < n; i++) {
+      const tile = this.tiles[i];
+      let off = i - center;
+      off = ((off % n) + n) % n;
+      if (off > n / 2) off -= n;
+      const dir = Math.sign(off), mag = Math.abs(off), ramp = Math.min(mag, 1);
+      const eased = this.curve(ramp);
+      tile.position.set(0, -off * c.flipGap, -eased * c.flipDepth - Math.max(0, mag - 1) * c.flipDepth * 0.2);
+      tile.rotation.set(dir * eased * Math.PI, 0, 0);
+      if (tile.geometry !== this.quad) tile.geometry = this.quad;
+      this._fit(tile, i);
+      tile.scale.multiplyScalar(1 + (1 - ramp) * (c.flipBump / 100 - 1));
+    }
+  }
+
   // Grid Reveal: a static grid; each tile fades/scales in on its own looping phase,
   // offset by its row+column so a wave sweeps across the wall.
   _layGrid() {
@@ -555,13 +595,13 @@ class Engine {
     const c = this.cfg, n = Math.max(1, this.tiles.length);
     for (const t of this.tiles) t.visible = true;
 
-    if (c.shape === "flow") {
+    if (c.shape === "flow" || c.shape === "cardflip") {
       this.spinner.rotation.set(0, 0, 0);
       const stepDur = c.loop / n, hold = Math.max(0, c.hold || 0), slot = stepDur + hold;
       const step = Math.floor(time / slot);
       const into = sat((time - step * slot) / stepDur);
       this._center = (step + this.curve(into)) * c.direction;
-      this._layFlow(this._center);
+      if (c.shape === "flow") this._layFlow(this._center); else this._layCardFlip(this._center);
       this._fade();
       return;
     }
@@ -770,6 +810,27 @@ const PRESETS = [
       { t: "num", label: "Lens", key: "lens", min: 30, max: 260, step: 1 },
       { t: "num", label: "Corner radius", key: "corner", min: 0, max: 300, step: 2 },
       { t: "curve", dur: { label: "Cycle seconds", key: "loop", min: 2, max: 30, step: 0.5 } },
+    ],
+  },
+  {
+    id: "cardflip", label: "Card Flip",
+    cfg: { ...BASE, shape: "cardflip", count: 16, tileSize: 560, dist: 2600, lens: 110,
+      loop: 10, hold: 0.25, fade: 40, corner: 20, direction: 1,
+      flipGap: 520, flipDepth: 700, flipBump: 112, curve: CURVES[3].p },
+    fields: [
+      { t: "seg", label: "Direction", key: "direction", opts: [[1, "Forward"], [-1, "Reverse"]] },
+      { t: "seg", label: "Mirror", key: "mirror", opts: [[false, "Off"], [true, "On"]] },
+      { t: "num", label: "Cards", key: "count", min: 3, max: 60, step: 1 },
+      { t: "num", label: "Tile size", key: "tileSize", min: 200, max: 1600, step: 10 },
+      { t: "num", label: "Gap", key: "flipGap", min: 150, max: 1400, step: 10 },
+      { t: "num", label: "Flip depth", key: "flipDepth", min: 0, max: 2000, step: 20 },
+      { t: "num", label: "Front bump %", key: "flipBump", min: 100, max: 160, step: 1 },
+      { t: "num", label: "Camera distance", key: "dist", min: 800, max: 16000, step: 20 },
+      { t: "num", label: "Lens", key: "lens", min: 30, max: 260, step: 1 },
+      { t: "num", label: "Depth fade %", key: "fade", min: 0, max: 100, step: 1 },
+      { t: "num", label: "Corner radius", key: "corner", min: 0, max: 300, step: 2 },
+      { t: "num", label: "Step hold", key: "hold", min: 0, max: 3, step: 0.05 },
+      { t: "curve", dur: { label: "Duration", key: "loop", min: 3, max: 40, step: 0.5 } },
     ],
   },
 ];
