@@ -457,10 +457,23 @@ class Engine {
   }
 
   lay() {
-    if (this.cfg.shape === "sphere") return this._laySphere();
-    if (this.cfg.shape === "flow") return this._layFlow(this._center);
-    if (this.cfg.shape === "grid") return this._layGrid();
-    if (this.cfg.shape === "cardflip") return this._layCardFlip(this._center);
+    const s = this.cfg.shape;
+    if (s === "sphere") return this._laySphere();
+    if (s === "flow") return this._layFlow(this._center);
+    if (s === "grid") return this._layGrid();
+    if (s === "cardflip") return this._layCardFlip(this._center);
+    if (s === "ticker") return this._layTicker(this._center);
+    if (s === "trail") return this._layTrail(this._center);
+    if (s === "spiral") return this._laySpiral();
+    if (s === "orbit") return this._layOrbitRings();
+    if (s === "pinwheel") return this._layPinwheel();
+    if (s === "radar") return this._layRadar();
+    if (s === "kaleido") return this._layKaleido(this._center);
+    if (s === "tunnel") return this._layTunnel(this._center);
+    if (s === "bounce") return this._layBounce(this._center);
+    if (s === "domino") return this._layDomino(this._center);
+    if (s === "deck") return this._layDeck(this._center);
+    if (s === "parallax") return this._layParallax(this._center);
     return this._layRing();
   }
 
@@ -564,6 +577,235 @@ class Engine {
     }
   }
 
+  // Ticker Loop: one band of tiles scrolling at constant speed, wrapping seamlessly.
+  _layTicker(offset) {
+    const c = this.cfg, n = this.tiles.length;
+    if (!n) return;
+    const gap = c.tileSize + c.tickerGap, band = gap * n;
+    for (let i = 0; i < n; i++) {
+      const tile = this.tiles[i];
+      const pos = ((i * gap - offset) % band + band) % band - band / 2;
+      if (c.axis === "y") tile.position.set(0, pos, 0); else tile.position.set(pos, 0, 0);
+      tile.rotation.set(0, 0, 0);
+      if (tile.geometry !== this.quad) tile.geometry = this.quad;
+      this._fit(tile, i);
+      tile.material.uniforms.uFade.value = 0;
+    }
+  }
+
+  // Image Trail: a comet — tile 0 leads at full size/brightness, later tiles trail
+  // behind along the same wave path, shrinking and fading toward the tail.
+  _layTrail(progress) {
+    const c = this.cfg, n = this.tiles.length;
+    if (!n) return;
+    for (let i = 0; i < n; i++) {
+      const tile = this.tiles[i];
+      const s = (((i / n) + progress) % 1 + 1) % 1;
+      const head = 1 - i / n;
+      tile.position.set((s - 0.5) * c.trailWidth, Math.sin(s * Math.PI * 2 * c.trailWaves) * c.trailHeight, 0);
+      tile.rotation.set(0, 0, 0);
+      if (tile.geometry !== this.quad) tile.geometry = this.quad;
+      this._fit(tile, i);
+      tile.scale.multiplyScalar(0.35 + 0.65 * head);
+      tile.material.uniforms.uFade.value = 1 - head;
+    }
+  }
+
+  // Spiral Helix: tiles climb a helix, radius growing with height — a static shape
+  // spun as a whole by the shared rotate-the-group path (like Ring/Sphere).
+  _laySpiral() {
+    const c = this.cfg, n = this.tiles.length;
+    if (!n) return;
+    for (let i = 0; i < n; i++) {
+      const tile = this.tiles[i];
+      const s = n > 1 ? i / (n - 1) : 0;
+      const a = s * Math.PI * 2 * c.spiralTurns;
+      const r = c.spiralRadius * (0.35 + 0.65 * s);
+      tile.position.set(Math.sin(a) * r, (s - 0.5) * c.spiralHeight, Math.cos(a) * r);
+      tile.rotation.set(0, a, 0);
+      if (tile.geometry !== this.quad) tile.geometry = this.quad;
+      this._fit(tile, i);
+    }
+  }
+
+  // Orbit Rings: 3 concentric rings at different heights — also spun as a whole.
+  _layOrbitRings() {
+    const c = this.cfg, n = this.tiles.length, rings = 3;
+    if (!n) return;
+    const per = Math.ceil(n / rings);
+    for (let i = 0; i < n; i++) {
+      const tile = this.tiles[i];
+      const ring = Math.floor(i / per), within = i % per;
+      const countIn = Math.min(per, n - ring * per);
+      const a = (within / Math.max(1, countIn)) * Math.PI * 2;
+      const r = c.orbitBaseRadius + ring * c.orbitRingGap;
+      tile.position.set(Math.sin(a) * r, (ring - (rings - 1) / 2) * c.orbitRingSpread, Math.cos(a) * r);
+      tile.rotation.set(0, a, 0);
+      if (tile.geometry !== this.quad) tile.geometry = this.quad;
+      this._fit(tile, i);
+    }
+  }
+
+  // Pinwheel: a flat fan of tiles facing the camera, spun around Z like a windmill.
+  _layPinwheel() {
+    const c = this.cfg, n = this.tiles.length;
+    if (!n) return;
+    for (let i = 0; i < n; i++) {
+      const tile = this.tiles[i];
+      const a = (i / n) * Math.PI * 2;
+      tile.position.set(Math.cos(a) * c.pinwheelRadius, Math.sin(a) * c.pinwheelRadius, 0);
+      tile.rotation.set(0, 0, a + Math.PI / 2);
+      if (tile.geometry !== this.quad) tile.geometry = this.quad;
+      this._fit(tile, i);
+    }
+  }
+
+  // Radar Sweep: a static ring (billboarded to the camera); a highlight independent
+  // of the ring's own slow drift sweeps around, brightening tiles as it passes.
+  _layRadar() {
+    const c = this.cfg, n = this.tiles.length;
+    if (!n) return;
+    for (let i = 0; i < n; i++) {
+      const tile = this.tiles[i];
+      const a = (i / n) * Math.PI * 2;
+      tile.position.set(Math.cos(a) * c.radarRadius, Math.sin(a) * c.radarRadius, 0);
+      tile.rotation.set(0, 0, 0);
+      if (tile.geometry !== this.quad) tile.geometry = this.quad;
+      this._fit(tile, i);
+      tile.userData.radarAngle = a;
+    }
+  }
+
+  _radarSweep(time) {
+    const c = this.cfg;
+    const sweep = ((time / Math.max(0.5, c.radarPeriod)) % 1) * Math.PI * 2 * c.direction;
+    const spin = this.spinner.rotation.z;
+    for (const tile of this.tiles) {
+      let d = (tile.userData.radarAngle + spin - sweep) % (Math.PI * 2);
+      if (d > Math.PI) d -= Math.PI * 2; else if (d < -Math.PI) d += Math.PI * 2;
+      const near = Math.max(0, 1 - Math.abs(d) / Math.max(0.05, c.radarWidth));
+      tile.scale.multiplyScalar(1 + near * (c.radarBoost / 100 - 1));
+      const u = tile.material.uniforms;
+      u.uFade.value = Math.max(0, u.uFade.value - near * 0.7);
+    }
+  }
+
+  // Kaleidoscope Burst: tiles at fixed angular slots, radius breathing in and out.
+  _layKaleido(time) {
+    const c = this.cfg, n = this.tiles.length;
+    if (!n) return;
+    const breathe = 0.5 + 0.5 * Math.sin((time / Math.max(0.5, c.loop)) * Math.PI * 2);
+    const r = c.kaleidoMinRadius + (c.kaleidoMaxRadius - c.kaleidoMinRadius) * this.curve(breathe);
+    const spin = time * 0.2 * c.direction;
+    for (let i = 0; i < n; i++) {
+      const tile = this.tiles[i];
+      const a = (i / n) * Math.PI * 2 + spin;
+      tile.position.set(Math.sin(a) * r, Math.cos(a) * r, 0);
+      tile.rotation.set(0, 0, a);
+      if (tile.geometry !== this.quad) tile.geometry = this.quad;
+      this._fit(tile, i);
+      tile.material.uniforms.uFade.value = 0;
+    }
+  }
+
+  // Zoom Tunnel: tiles fly from far/small/dim to near/large/bright and loop.
+  _layTunnel(progress) {
+    const c = this.cfg, n = this.tiles.length;
+    if (!n) return;
+    const golden = 2.399963;
+    for (let i = 0; i < n; i++) {
+      const tile = this.tiles[i];
+      const s = (((i / n) + progress) % 1 + 1) % 1;
+      const ang = (i * golden) % (Math.PI * 2);
+      tile.position.set(Math.cos(ang) * c.tunnelSpread, Math.sin(ang) * c.tunnelSpread, -c.tunnelDepth * (1 - s));
+      tile.rotation.set(0, 0, 0);
+      if (tile.geometry !== this.quad) tile.geometry = this.quad;
+      this._fit(tile, i);
+      tile.scale.multiplyScalar(0.1 + 0.9 * s);
+      tile.material.uniforms.uFade.value = Math.max(0, 1 - s * 1.4);
+    }
+  }
+
+  // Bounce Grid: a static grid where a traveling wave bounces each column in turn.
+  _layBounce(time) {
+    const c = this.cfg, n = this.tiles.length;
+    if (!n) return;
+    const cols = Math.max(1, Math.round(Math.sqrt(n * 1.4)));
+    const rows = Math.ceil(n / cols);
+    const cellW = c.tileSize + c.bounceGap, cellH = c.tileSize * 1.2 + c.bounceGap;
+    for (let i = 0; i < n; i++) {
+      const tile = this.tiles[i];
+      const row = Math.floor(i / cols), col = i % cols;
+      const phase = col / Math.max(1, cols - 1);
+      const bounce = Math.max(0, Math.sin((time / Math.max(0.3, c.loop) - phase * c.bounceStagger) * Math.PI * 2));
+      tile.position.set((col - (cols - 1) / 2) * cellW, ((rows - 1) / 2 - row) * cellH + bounce * c.bounceHeight, 0);
+      tile.rotation.set(0, 0, 0);
+      if (tile.geometry !== this.quad) tile.geometry = this.quad;
+      this._fit(tile, i);
+      tile.scale.multiplyScalar(1 + bounce * 0.15);
+      tile.material.uniforms.uFade.value = 0;
+    }
+  }
+
+  // Domino Cascade: a row of tiles standing on a baseline; a wave sweeps down the
+  // row, tipping each one on its bottom edge like a falling domino, then it rights.
+  _layDomino(time) {
+    const c = this.cfg, n = this.tiles.length;
+    if (!n) return;
+    const cellW = c.tileSize + c.dominoGap;
+    const wave = (time / Math.max(0.5, c.loop)) * n * c.direction;
+    for (let i = 0; i < n; i++) {
+      const tile = this.tiles[i];
+      let d = i - wave;
+      d = ((d % n) + n) % n; if (d > n / 2) d -= n;
+      const fall = Math.max(0, 1 - Math.abs(d));
+      const theta = this.curve(fall) * THREE.MathUtils.degToRad(c.dominoAngle);
+      const x0 = (i - (n - 1) / 2) * cellW;
+      tile.position.set(x0 + Math.sin(theta) * c.tileSize / 2, Math.cos(theta) * c.tileSize / 2, 0);
+      tile.rotation.set(0, 0, -theta);
+      if (tile.geometry !== this.quad) tile.geometry = this.quad;
+      this._fit(tile, i);
+      tile.material.uniforms.uFade.value = 0;
+    }
+  }
+
+  // Deck Shuffle: a stack riffling — the top card cycles back to the bottom, with
+  // a slight fan offset per depth so the whole deck reads as a stack, not one card.
+  _layDeck(center) {
+    const c = this.cfg, n = this.tiles.length;
+    if (!n) return;
+    for (let i = 0; i < n; i++) {
+      const tile = this.tiles[i];
+      let off = i - center;
+      off = ((off % n) + n) % n;
+      tile.position.set(off * c.deckOffsetX, -off * c.deckOffsetY, -off * c.deckDepth);
+      if (tile.geometry !== this.quad) tile.geometry = this.quad;
+      this._fit(tile, i);
+      tile.rotation.set(0, 0, THREE.MathUtils.degToRad(c.deckFan) * (off % 2 ? -1 : 1) * Math.min(1, off));
+    }
+  }
+
+  // Parallax Drift: 3 depth layers scroll sideways at different speeds — nearer,
+  // sharper, faster; farther, smaller, dimmer.
+  _layParallax(offset) {
+    const c = this.cfg, n = this.tiles.length, layers = 3;
+    if (!n) return;
+    const per = Math.ceil(n / layers);
+    for (let i = 0; i < n; i++) {
+      const tile = this.tiles[i];
+      const layer = i % layers, idx = Math.floor(i / layers);
+      const gap = c.tileSize * (1 + layer * 0.35) + c.parallaxGap;
+      const band = gap * Math.max(1, per);
+      const x = ((idx * gap - offset * (1 + layer * c.parallaxSpeedStep)) % band + band) % band - band / 2;
+      tile.position.set(x, (layer - 1) * c.parallaxRowGap, -layer * c.parallaxDepth);
+      tile.rotation.set(0, 0, 0);
+      if (tile.geometry !== this.quad) tile.geometry = this.quad;
+      this._fit(tile, i);
+      tile.scale.multiplyScalar(1 - layer * 0.15);
+      tile.material.uniforms.uFade.value = layer * 0.3;
+    }
+  }
+
   _fit(tile, i) {
     const c = this.cfg;
     const r = this.ratio.get(this._src(i)) ?? 1.25;
@@ -618,6 +860,62 @@ class Engine {
       }
       return;
     }
+    if (c.shape === "ticker") {
+      this.spinner.rotation.set(0, 0, 0);
+      const speed = (c.tileSize + c.tickerGap) / Math.max(0.5, c.loop) * n;
+      this._center = time * speed * c.direction;
+      this._layTicker(this._center);
+      return;
+    }
+    if (c.shape === "trail") {
+      this.spinner.rotation.set(0, 0, 0);
+      const revs = time / Math.max(0.5, c.loop);
+      const whole = Math.floor(revs);
+      this._center = (whole + this.curve(revs - whole)) * c.direction;
+      this._layTrail(this._center);
+      return;
+    }
+    if (c.shape === "kaleido") {
+      this.spinner.rotation.set(0, 0, 0);
+      this._center = time;
+      this._layKaleido(time);
+      return;
+    }
+    if (c.shape === "tunnel") {
+      this.spinner.rotation.set(0, 0, 0);
+      this._center = (time / Math.max(0.5, c.loop)) * c.direction;
+      this._layTunnel(this._center);
+      return;
+    }
+    if (c.shape === "bounce") {
+      this.spinner.rotation.set(0, 0, 0);
+      this._center = time;
+      this._layBounce(time);
+      return;
+    }
+    if (c.shape === "domino") {
+      this.spinner.rotation.set(0, 0, 0);
+      this._center = time;
+      this._layDomino(time);
+      return;
+    }
+    if (c.shape === "deck") {
+      this.spinner.rotation.set(0, 0, 0);
+      const stepDur = c.loop / n, hold = Math.max(0, c.hold || 0), slot = stepDur + hold;
+      const step = Math.floor(time / slot);
+      const into = sat((time - step * slot) / stepDur);
+      this._center = (step + this.curve(into)) * c.direction;
+      this._layDeck(this._center);
+      this._fade();
+      return;
+    }
+    if (c.shape === "parallax") {
+      this.spinner.rotation.set(0, 0, 0);
+      const speed = (c.tileSize + c.parallaxGap) / Math.max(0.5, c.loop);
+      this._center = time * speed * c.direction;
+      this._layParallax(this._center);
+      return;
+    }
 
     let angle;
     if (c.mode === "steps") {
@@ -642,6 +940,7 @@ class Engine {
     if (c.face === "camera") this._billboard();
     if (c.shape === "sphere") this._sphereScale();
     if (c.shape === "ring" && !c.showBacks) this._cullBacks();
+    if (c.shape === "radar") this._radarSweep(time);
   }
 
   _fade() {
@@ -831,6 +1130,236 @@ const PRESETS = [
       { t: "num", label: "Corner radius", key: "corner", min: 0, max: 300, step: 2 },
       { t: "num", label: "Step hold", key: "hold", min: 0, max: 3, step: 0.05 },
       { t: "curve", dur: { label: "Duration", key: "loop", min: 3, max: 40, step: 0.5 } },
+    ],
+  },
+  {
+    id: "ticker", label: "Ticker Loop",
+    cfg: { ...BASE, shape: "ticker", count: 20, tileSize: 380, tickerGap: 60,
+      dist: 2400, lens: 100, loop: 14, corner: 12, axis: "x", direction: 1 },
+    fields: [
+      { t: "seg", label: "Direction", key: "direction", opts: [[1, "Forward"], [-1, "Reverse"]] },
+      { t: "seg", label: "Scroll axis", key: "axis", opts: [["x", "Horizontal"], ["y", "Vertical"]] },
+      { t: "seg", label: "Mirror", key: "mirror", opts: [[false, "Off"], [true, "On"]] },
+      { t: "num", label: "Tiles", key: "count", min: 4, max: 80, step: 1 },
+      { t: "num", label: "Tile size", key: "tileSize", min: 120, max: 1200, step: 10 },
+      { t: "num", label: "Gap", key: "tickerGap", min: 0, max: 600, step: 5 },
+      { t: "num", label: "Camera distance", key: "dist", min: 800, max: 16000, step: 20 },
+      { t: "num", label: "Lens", key: "lens", min: 30, max: 260, step: 1 },
+      { t: "num", label: "Corner radius", key: "corner", min: 0, max: 300, step: 2 },
+      { t: "num", label: "Loop seconds", key: "loop", min: 2, max: 40, step: 0.5 },
+    ],
+  },
+  {
+    id: "trail", label: "Image Trail",
+    cfg: { ...BASE, shape: "trail", count: 18, tileSize: 340, trailWidth: 3600,
+      trailHeight: 700, trailWaves: 1.5, dist: 3000, lens: 100, loop: 9, corner: 16,
+      direction: 1, curve: CURVES[5].p },
+    fields: [
+      { t: "seg", label: "Direction", key: "direction", opts: [[1, "Forward"], [-1, "Reverse"]] },
+      { t: "seg", label: "Mirror", key: "mirror", opts: [[false, "Off"], [true, "On"]] },
+      { t: "num", label: "Tiles", key: "count", min: 4, max: 60, step: 1 },
+      { t: "num", label: "Tile size", key: "tileSize", min: 100, max: 1000, step: 10 },
+      { t: "num", label: "Trail width", key: "trailWidth", min: 500, max: 8000, step: 50 },
+      { t: "num", label: "Wave height", key: "trailHeight", min: 0, max: 2000, step: 20 },
+      { t: "num", label: "Waves", key: "trailWaves", min: 0.25, max: 5, step: 0.25 },
+      { t: "num", label: "Camera distance", key: "dist", min: 800, max: 16000, step: 20 },
+      { t: "num", label: "Lens", key: "lens", min: 30, max: 260, step: 1 },
+      { t: "num", label: "Corner radius", key: "corner", min: 0, max: 300, step: 2 },
+      { t: "curve", dur: { label: "Duration", key: "loop", min: 3, max: 40, step: 0.5 } },
+    ],
+  },
+  {
+    id: "spiral", label: "Spiral Helix",
+    cfg: { ...BASE, shape: "spiral", mode: "spin", count: 40, tileSize: 260,
+      spiralRadius: 1300, spiralHeight: 2600, spiralTurns: 3, dist: 4200, lens: 110,
+      loop: 16, fade: 30, corner: 12, axis: "y", face: "camera", curve: CURVES[0].p },
+    fields: [
+      { t: "seg", label: "Direction", key: "direction", opts: [[1, "Forward"], [-1, "Reverse"]] },
+      { t: "seg", label: "Tiles face", key: "face", opts: [["camera", "Camera"], ["outward", "Outward"]] },
+      { t: "seg", label: "Mirror", key: "mirror", opts: [[false, "Off"], [true, "On"]] },
+      { t: "num", label: "Tiles", key: "count", min: 6, max: 150, step: 1 },
+      { t: "num", label: "Turns", key: "spiralTurns", min: 1, max: 10, step: 0.5 },
+      { t: "num", label: "Radius", key: "spiralRadius", min: 200, max: 4000, step: 20 },
+      { t: "num", label: "Height", key: "spiralHeight", min: 200, max: 8000, step: 50 },
+      { t: "num", label: "Tile size", key: "tileSize", min: 100, max: 1200, step: 10 },
+      { t: "num", label: "Camera distance", key: "dist", min: 800, max: 20000, step: 20 },
+      { t: "num", label: "Lens", key: "lens", min: 30, max: 260, step: 1 },
+      { t: "num", label: "Depth fade %", key: "fade", min: 0, max: 100, step: 1 },
+      { t: "num", label: "Corner radius", key: "corner", min: 0, max: 300, step: 2 },
+      { t: "curve", dur: { label: "Duration", key: "loop", min: 3, max: 40, step: 0.5 } },
+    ],
+  },
+  {
+    id: "orbit", label: "Orbit Rings",
+    cfg: { ...BASE, shape: "orbit", mode: "spin", count: 36, tileSize: 380,
+      orbitBaseRadius: 1200, orbitRingGap: 700, orbitRingSpread: 900, dist: 4600,
+      lens: 110, loop: 18, fade: 30, corner: 14, axis: "y", face: "camera", curve: CURVES[1].p },
+    fields: [
+      { t: "seg", label: "Direction", key: "direction", opts: [[1, "Forward"], [-1, "Reverse"]] },
+      { t: "seg", label: "Tiles face", key: "face", opts: [["camera", "Camera"], ["outward", "Outward"]] },
+      { t: "seg", label: "Mirror", key: "mirror", opts: [[false, "Off"], [true, "On"]] },
+      { t: "num", label: "Tiles", key: "count", min: 6, max: 150, step: 1 },
+      { t: "num", label: "Base radius", key: "orbitBaseRadius", min: 300, max: 4000, step: 20 },
+      { t: "num", label: "Ring gap", key: "orbitRingGap", min: 100, max: 3000, step: 20 },
+      { t: "num", label: "Ring spread", key: "orbitRingSpread", min: 0, max: 4000, step: 20 },
+      { t: "num", label: "Tile size", key: "tileSize", min: 100, max: 1400, step: 10 },
+      { t: "num", label: "Camera distance", key: "dist", min: 800, max: 20000, step: 20 },
+      { t: "num", label: "Lens", key: "lens", min: 30, max: 260, step: 1 },
+      { t: "num", label: "Depth fade %", key: "fade", min: 0, max: 100, step: 1 },
+      { t: "num", label: "Corner radius", key: "corner", min: 0, max: 300, step: 2 },
+      { t: "curve", dur: { label: "Duration", key: "loop", min: 3, max: 40, step: 0.5 } },
+    ],
+  },
+  {
+    id: "pinwheel", label: "Pinwheel",
+    cfg: { ...BASE, shape: "pinwheel", mode: "spin", count: 10, tileSize: 700,
+      pinwheelRadius: 900, dist: 3600, lens: 100, loop: 10, fade: 0, corner: 18,
+      axis: "z", curve: CURVES[6].p },
+    fields: [
+      { t: "seg", label: "Direction", key: "direction", opts: [[1, "Forward"], [-1, "Reverse"]] },
+      { t: "seg", label: "Mirror", key: "mirror", opts: [[false, "Off"], [true, "On"]] },
+      { t: "num", label: "Blades", key: "count", min: 3, max: 24, step: 1 },
+      { t: "num", label: "Radius", key: "pinwheelRadius", min: 200, max: 3000, step: 20 },
+      { t: "num", label: "Tile size", key: "tileSize", min: 150, max: 1600, step: 10 },
+      { t: "num", label: "Camera distance", key: "dist", min: 800, max: 16000, step: 20 },
+      { t: "num", label: "Lens", key: "lens", min: 30, max: 260, step: 1 },
+      { t: "num", label: "Corner radius", key: "corner", min: 0, max: 400, step: 2 },
+      { t: "curve", dur: { label: "Duration", key: "loop", min: 2, max: 40, step: 0.5 } },
+    ],
+  },
+  {
+    id: "radar", label: "Radar Sweep",
+    cfg: { ...BASE, shape: "radar", mode: "spin", count: 24, tileSize: 420,
+      radarRadius: 1500, dist: 4000, lens: 110, loop: 40, fade: 0, corner: 16,
+      axis: "z", face: "camera", radarPeriod: 4, radarWidth: 0.9, radarBoost: 145, curve: CURVES[0].p },
+    fields: [
+      { t: "seg", label: "Direction", key: "direction", opts: [[1, "Forward"], [-1, "Reverse"]] },
+      { t: "seg", label: "Mirror", key: "mirror", opts: [[false, "Off"], [true, "On"]] },
+      { t: "num", label: "Tiles", key: "count", min: 6, max: 100, step: 1 },
+      { t: "num", label: "Radius", key: "radarRadius", min: 300, max: 4000, step: 20 },
+      { t: "num", label: "Sweep seconds", key: "radarPeriod", min: 1, max: 20, step: 0.5 },
+      { t: "num", label: "Sweep width", key: "radarWidth", min: 0.1, max: 2, step: 0.05 },
+      { t: "num", label: "Sweep boost %", key: "radarBoost", min: 100, max: 220, step: 5 },
+      { t: "num", label: "Tile size", key: "tileSize", min: 100, max: 1200, step: 10 },
+      { t: "num", label: "Camera distance", key: "dist", min: 800, max: 20000, step: 20 },
+      { t: "num", label: "Lens", key: "lens", min: 30, max: 260, step: 1 },
+      { t: "num", label: "Depth fade %", key: "fade", min: 0, max: 100, step: 1 },
+      { t: "num", label: "Corner radius", key: "corner", min: 0, max: 300, step: 2 },
+      { t: "curve", dur: { label: "Ring drift", key: "loop", min: 4, max: 90, step: 1 } },
+    ],
+  },
+  {
+    id: "kaleido", label: "Kaleidoscope Burst",
+    cfg: { ...BASE, shape: "kaleido", count: 12, tileSize: 480,
+      kaleidoMinRadius: 200, kaleidoMaxRadius: 1400, dist: 3400, lens: 105,
+      loop: 6, corner: 16, direction: 1, curve: CURVES[2].p },
+    fields: [
+      { t: "seg", label: "Direction", key: "direction", opts: [[1, "Forward"], [-1, "Reverse"]] },
+      { t: "seg", label: "Mirror", key: "mirror", opts: [[false, "Off"], [true, "On"]] },
+      { t: "num", label: "Petals", key: "count", min: 4, max: 40, step: 1 },
+      { t: "num", label: "Min radius", key: "kaleidoMinRadius", min: 0, max: 2000, step: 20 },
+      { t: "num", label: "Max radius", key: "kaleidoMaxRadius", min: 200, max: 4000, step: 20 },
+      { t: "num", label: "Tile size", key: "tileSize", min: 100, max: 1400, step: 10 },
+      { t: "num", label: "Camera distance", key: "dist", min: 800, max: 16000, step: 20 },
+      { t: "num", label: "Lens", key: "lens", min: 30, max: 260, step: 1 },
+      { t: "num", label: "Corner radius", key: "corner", min: 0, max: 400, step: 2 },
+      { t: "curve", dur: { label: "Breathe seconds", key: "loop", min: 2, max: 30, step: 0.5 } },
+    ],
+  },
+  {
+    id: "tunnel", label: "Zoom Tunnel",
+    cfg: { ...BASE, shape: "tunnel", count: 26, tileSize: 340,
+      tunnelDepth: 6000, tunnelSpread: 900, dist: 200, lens: 140,
+      loop: 8, corner: 14, direction: 1 },
+    fields: [
+      { t: "seg", label: "Direction", key: "direction", opts: [[1, "Forward"], [-1, "Reverse"]] },
+      { t: "seg", label: "Mirror", key: "mirror", opts: [[false, "Off"], [true, "On"]] },
+      { t: "num", label: "Tiles", key: "count", min: 6, max: 80, step: 1 },
+      { t: "num", label: "Tunnel depth", key: "tunnelDepth", min: 500, max: 20000, step: 100 },
+      { t: "num", label: "Spread", key: "tunnelSpread", min: 0, max: 4000, step: 20 },
+      { t: "num", label: "Tile size", key: "tileSize", min: 100, max: 1200, step: 10 },
+      { t: "num", label: "Camera distance", key: "dist", min: 50, max: 4000, step: 20 },
+      { t: "num", label: "Lens", key: "lens", min: 30, max: 260, step: 1 },
+      { t: "num", label: "Corner radius", key: "corner", min: 0, max: 300, step: 2 },
+      { t: "num", label: "Loop seconds", key: "loop", min: 2, max: 40, step: 0.5 },
+    ],
+  },
+  {
+    id: "bounce", label: "Bounce Grid",
+    cfg: { ...BASE, shape: "bounce", count: 20, tileSize: 400,
+      bounceGap: 40, bounceHeight: 260, bounceStagger: 2.4, dist: 3200, lens: 100,
+      loop: 3, corner: 16 },
+    fields: [
+      { t: "seg", label: "Mirror", key: "mirror", opts: [[false, "Off"], [true, "On"]] },
+      { t: "num", label: "Tiles", key: "count", min: 4, max: 80, step: 1 },
+      { t: "num", label: "Tile size", key: "tileSize", min: 100, max: 1000, step: 10 },
+      { t: "num", label: "Gap", key: "bounceGap", min: 0, max: 300, step: 5 },
+      { t: "num", label: "Bounce height", key: "bounceHeight", min: 0, max: 1500, step: 10 },
+      { t: "num", label: "Stagger", key: "bounceStagger", min: 0, max: 6, step: 0.1 },
+      { t: "num", label: "Camera distance", key: "dist", min: 800, max: 16000, step: 20 },
+      { t: "num", label: "Lens", key: "lens", min: 30, max: 260, step: 1 },
+      { t: "num", label: "Corner radius", key: "corner", min: 0, max: 300, step: 2 },
+      { t: "num", label: "Bounce seconds", key: "loop", min: 0.5, max: 10, step: 0.1 },
+    ],
+  },
+  {
+    id: "domino", label: "Domino Cascade",
+    cfg: { ...BASE, shape: "domino", count: 16, tileSize: 420,
+      dominoGap: 30, dominoAngle: 78, dist: 3600, lens: 100, loop: 5, corner: 10,
+      direction: 1, curve: CURVES[3].p },
+    fields: [
+      { t: "seg", label: "Direction", key: "direction", opts: [[1, "Forward"], [-1, "Reverse"]] },
+      { t: "seg", label: "Mirror", key: "mirror", opts: [[false, "Off"], [true, "On"]] },
+      { t: "num", label: "Tiles", key: "count", min: 4, max: 60, step: 1 },
+      { t: "num", label: "Tile size", key: "tileSize", min: 100, max: 1000, step: 10 },
+      { t: "num", label: "Gap", key: "dominoGap", min: 0, max: 300, step: 5 },
+      { t: "num", label: "Fall angle", key: "dominoAngle", min: 20, max: 90, step: 1 },
+      { t: "num", label: "Camera distance", key: "dist", min: 800, max: 16000, step: 20 },
+      { t: "num", label: "Lens", key: "lens", min: 30, max: 260, step: 1 },
+      { t: "num", label: "Corner radius", key: "corner", min: 0, max: 300, step: 2 },
+      { t: "curve", dur: { label: "Sweep seconds", key: "loop", min: 1, max: 30, step: 0.5 } },
+    ],
+  },
+  {
+    id: "deck", label: "Deck Shuffle",
+    cfg: { ...BASE, shape: "deck", count: 14, tileSize: 620,
+      deckOffsetX: 10, deckOffsetY: 14, deckDepth: 26, deckFan: 6, dist: 2600,
+      lens: 100, loop: 8, hold: 0.3, fade: 35, corner: 20, direction: 1, curve: CURVES[1].p },
+    fields: [
+      { t: "seg", label: "Direction", key: "direction", opts: [[1, "Forward"], [-1, "Reverse"]] },
+      { t: "seg", label: "Mirror", key: "mirror", opts: [[false, "Off"], [true, "On"]] },
+      { t: "num", label: "Cards", key: "count", min: 3, max: 60, step: 1 },
+      { t: "num", label: "Tile size", key: "tileSize", min: 150, max: 1400, step: 10 },
+      { t: "num", label: "Fan X", key: "deckOffsetX", min: 0, max: 100, step: 1 },
+      { t: "num", label: "Fan Y", key: "deckOffsetY", min: 0, max: 100, step: 1 },
+      { t: "num", label: "Stack depth", key: "deckDepth", min: 0, max: 200, step: 2 },
+      { t: "num", label: "Fan angle", key: "deckFan", min: 0, max: 30, step: 1 },
+      { t: "num", label: "Camera distance", key: "dist", min: 800, max: 16000, step: 20 },
+      { t: "num", label: "Lens", key: "lens", min: 30, max: 260, step: 1 },
+      { t: "num", label: "Depth fade %", key: "fade", min: 0, max: 100, step: 1 },
+      { t: "num", label: "Corner radius", key: "corner", min: 0, max: 300, step: 2 },
+      { t: "num", label: "Step hold", key: "hold", min: 0, max: 3, step: 0.05 },
+      { t: "curve", dur: { label: "Duration", key: "loop", min: 3, max: 40, step: 0.5 } },
+    ],
+  },
+  {
+    id: "parallax", label: "Parallax Drift",
+    cfg: { ...BASE, shape: "parallax", count: 24, tileSize: 340,
+      parallaxGap: 60, parallaxSpeedStep: 0.6, parallaxRowGap: 420, parallaxDepth: 500,
+      dist: 2600, lens: 100, loop: 10, corner: 14, direction: 1 },
+    fields: [
+      { t: "seg", label: "Direction", key: "direction", opts: [[1, "Forward"], [-1, "Reverse"]] },
+      { t: "seg", label: "Mirror", key: "mirror", opts: [[false, "Off"], [true, "On"]] },
+      { t: "num", label: "Tiles", key: "count", min: 6, max: 90, step: 1 },
+      { t: "num", label: "Tile size", key: "tileSize", min: 100, max: 900, step: 10 },
+      { t: "num", label: "Gap", key: "parallaxGap", min: 0, max: 300, step: 5 },
+      { t: "num", label: "Layer speed step", key: "parallaxSpeedStep", min: 0, max: 2, step: 0.05 },
+      { t: "num", label: "Row gap", key: "parallaxRowGap", min: 0, max: 1200, step: 10 },
+      { t: "num", label: "Layer depth", key: "parallaxDepth", min: 0, max: 2000, step: 20 },
+      { t: "num", label: "Camera distance", key: "dist", min: 800, max: 16000, step: 20 },
+      { t: "num", label: "Lens", key: "lens", min: 30, max: 260, step: 1 },
+      { t: "num", label: "Corner radius", key: "corner", min: 0, max: 300, step: 2 },
+      { t: "num", label: "Loop seconds", key: "loop", min: 2, max: 40, step: 0.5 },
     ],
   },
 ];
