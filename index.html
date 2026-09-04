@@ -26,12 +26,18 @@
 
   #app { display: flex; height: calc(100% - 60px); }
   .col { width: 300px; padding: 16px; overflow-y: auto; flex-shrink: 0; }
-  #left { border-right: 1px solid var(--line); }
+  #left { border-right: 1px solid var(--line); width: 360px; }
   #right { border-left: 1px solid var(--line); width: 320px; }
 
   .brand { display: flex; align-items: center; font-weight: 650; font-size: 14px; margin-bottom: 14px; }
   .brand b { background: var(--accent); color: var(--accent-ink); border-radius: 6px;
     padding: 2px 6px; margin-right: 9px; font-size: 12px; letter-spacing: .04em; }
+
+  .toolbar { display: flex; gap: 6px; margin-bottom: 16px; }
+  .toolbar button { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
+    color: var(--txt); padding: 8px 10px; font-size: 12px; }
+  .toolbar button:disabled { opacity: .35; cursor: default; }
+  .toolbar button.grow { flex: 1; text-align: left; }
 
   .kicker { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 18px 0 9px; }
   .kicker.first { margin-top: 0; }
@@ -41,8 +47,9 @@
     border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; margin-top: 8px; }
 
   .curve-box { margin-top: 8px; background: var(--panel-2); border: 1px solid var(--line);
-    border-radius: 12px; padding: 20px; touch-action: none; }
+    border-radius: 12px; padding: 12px; touch-action: none; }
   .curve-box svg { display: block; width: 100%; height: auto; aspect-ratio: 1 / 1; overflow: visible; }
+  .curve-grid { stroke: var(--line); stroke-width: 1; }
   .curve-path { fill: none; stroke: var(--txt); stroke-width: 2.5; stroke-linecap: round; }
   .curve-arm { stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 1 6; stroke-linecap: round; opacity: .8; }
   .curve-anchor { fill: var(--muted); }
@@ -224,12 +231,16 @@ const CURVES = [
  *  (cubic-bezier.com / devtools style). Handles write into `get()`'s
  *  curve array and call `onChange` after every drag.
  * ------------------------------------------------------------------ */
-function curveGraph(host, get, onChange) {
+function curveGraph(host, get, onChange, onDragEnd) {
   const NS = "http://www.w3.org/2000/svg";
-  const YMIN = -0.5, YMAX = 1.5;                 // visible range beyond 0..1 for overshoot curves
+  const YMIN = -0.5, YMAX = 1.5;                 // clamp range for dragging (overshoot curves)
+  const MARGIN = 8;                              // visual margin, small so the 0..1 box fills most of the frame
   const el = (tag, cls) => { const n = document.createElementNS(NS, tag); if (cls) n.setAttribute("class", cls); return n; };
   const svg = el("svg");
-  svg.setAttribute("viewBox", `-25 ${-((YMAX - 1) * 100)} 150 ${100 * (YMAX - YMIN)}`);
+  svg.setAttribute("viewBox", `${-MARGIN} ${-MARGIN} ${100 + 2 * MARGIN} ${100 + 2 * MARGIN}`);
+  const gridV = el("line", "curve-grid"), gridH = el("line", "curve-grid");
+  gridV.setAttribute("x1", 50); gridV.setAttribute("y1", 0); gridV.setAttribute("x2", 50); gridV.setAttribute("y2", 100);
+  gridH.setAttribute("x1", 0); gridH.setAttribute("y1", 50); gridH.setAttribute("x2", 100); gridH.setAttribute("y2", 50);
   const arm1 = el("line", "curve-arm"), arm2 = el("line", "curve-arm");
   const path = el("path", "curve-path");
   const anchorA = el("circle", "curve-anchor"), anchorB = el("circle", "curve-anchor");
@@ -237,7 +248,7 @@ function curveGraph(host, get, onChange) {
   anchorB.setAttribute("cx", 100); anchorB.setAttribute("cy", 0); anchorB.setAttribute("r", 3);
   const h1 = el("circle", "curve-handle"), h2 = el("circle", "curve-handle");
   h1.setAttribute("r", 7); h2.setAttribute("r", 7);
-  svg.append(arm1, arm2, path, anchorA, anchorB, h1, h2);
+  svg.append(gridV, gridH, arm1, arm2, path, anchorA, anchorB, h1, h2);
   host.appendChild(svg);
 
   const toSvg = (x, y) => [x * 100, (1 - y) * 100];
@@ -266,7 +277,7 @@ function curveGraph(host, get, onChange) {
         onChange(isFirst ? [x, y, cur[2], cur[3]] : [cur[0], cur[1], x, y]);
         draw();
       };
-      const up = () => { removeEventListener("pointermove", move); removeEventListener("pointerup", up); };
+      const up = () => { removeEventListener("pointermove", move); removeEventListener("pointerup", up); onDragEnd?.(); };
       addEventListener("pointermove", move); addEventListener("pointerup", up);
     });
   }
@@ -674,6 +685,38 @@ let preset = PRESETS[0];
 let CFG = { ...preset.cfg };
 const engine = new Engine(document.getElementById("view"), CFG, live());
 
+/* ---- edit history: Reset restores the preset's defaults, Back/Next step through edits ---- */
+const snapshot = () => ({ id: preset.id, cfg: { ...CFG, curve: CFG.curve.slice() } });
+let history = [snapshot()], histAt = 0;
+function pushHistory() {
+  history = history.slice(0, histAt + 1);
+  history.push(snapshot());
+  if (history.length > 50) history.shift(); else histAt++;
+  histAt = history.length - 1;
+  syncHistory();
+}
+function goHistory(dir) {
+  const at = histAt + dir;
+  if (at < 0 || at >= history.length) return;
+  histAt = at;
+  const st = history[histAt];
+  preset = PRESETS.find((p) => p.id === st.id);
+  CFG = { ...st.cfg, curve: st.cfg.curve.slice() };
+  engine.preset(CFG);
+  buildPanel();
+}
+function resetPreset() {
+  CFG = { ...preset.cfg, curve: preset.cfg.curve.slice() };
+  engine.preset(CFG);
+  buildPanel();
+  pushHistory();
+}
+function syncHistory() {
+  const back = document.getElementById("tb-back"), next = document.getElementById("tb-next");
+  if (back) back.disabled = histAt <= 0;
+  if (next) next.disabled = histAt >= history.length - 1;
+}
+
 let playing = true, head = 0, anchor = performance.now();
 let recording = false, rec = null, blobs = [], loopsSeen = 0, scrubbing = false;
 
@@ -711,7 +754,16 @@ function apply(key, val) {
 }
 
 function buildPanel() {
-  left.innerHTML = `<div class="brand"><b>MG</b> Motion Gallery</div><div class="kicker first">Preset</div>`;
+  left.innerHTML = `<div class="brand"><b>MG</b> Motion Gallery</div>
+    <div class="toolbar">
+      <button id="tb-reset" class="grow" title="Reset this motion to its defaults">↺ Reset</button>
+      <button id="tb-back" title="Undo last change">◀</button>
+      <button id="tb-next" title="Redo">▶</button>
+    </div>
+    <div class="kicker first">Preset</div>`;
+  document.getElementById("tb-reset").onclick = resetPreset;
+  document.getElementById("tb-back").onclick = () => goHistory(-1);
+  document.getElementById("tb-next").onclick = () => goHistory(1);
   const sel = document.createElement("select");
   sel.className = "sel";
   for (const p of PRESETS) {
@@ -726,6 +778,7 @@ function buildPanel() {
     engine.preset(CFG);
     setHead(0);
     buildPanel();
+    pushHistory();
   };
   left.appendChild(sel);
 
@@ -742,6 +795,7 @@ function buildPanel() {
           CFG[f.key] = v; engine.patch(CFG);
           seg.querySelectorAll("button").forEach(x => x.classList.remove("on"));
           b.classList.add("on");
+          pushHistory();
         };
         seg.appendChild(b);
       }
@@ -756,7 +810,8 @@ function buildPanel() {
       num.type = "number"; num.min = f.min; num.max = f.max; num.step = f.step;
       num.value = shown(CFG[f.key], f.step); num.dataset.key = f.key; num.dataset.step = f.step;
       rng.oninput = () => apply(f.key, parseFloat(rng.value));
-      num.onchange = () => apply(f.key, clamp(parseFloat(num.value) || f.min, f.min, f.max));
+      rng.onchange = () => pushHistory();
+      num.onchange = () => { apply(f.key, clamp(parseFloat(num.value) || f.min, f.min, f.max)); pushHistory(); };
       row.append(lab, rng, num);
       left.appendChild(row);
     } else if (f.t === "curve") {
@@ -770,8 +825,8 @@ function buildPanel() {
       });
       left.appendChild(s);
       const box = document.createElement("div"); box.className = "curve-box"; left.appendChild(box);
-      const redraw = curveGraph(box, () => CFG.curve, (next) => { CFG.curve = next; engine.patch(CFG); });
-      s.onchange = () => { CFG.curve = CURVES[+s.value].p.slice(); engine.patch(CFG); redraw(); };
+      const redraw = curveGraph(box, () => CFG.curve, (next) => { CFG.curve = next; engine.patch(CFG); }, () => pushHistory());
+      s.onchange = () => { CFG.curve = CURVES[+s.value].p.slice(); engine.patch(CFG); redraw(); pushHistory(); };
 
       if (f.dur) {
         const d = f.dur;
@@ -784,12 +839,14 @@ function buildPanel() {
         num.type = "number"; num.min = d.min; num.max = d.max; num.step = d.step;
         num.value = shown(CFG[d.key], d.step); num.dataset.key = d.key; num.dataset.step = d.step;
         rng.oninput = () => apply(d.key, parseFloat(rng.value));
-        num.onchange = () => apply(d.key, clamp(parseFloat(num.value) || d.min, d.min, d.max));
+        rng.onchange = () => pushHistory();
+        num.onchange = () => { apply(d.key, clamp(parseFloat(num.value) || d.min, d.min, d.max)); pushHistory(); };
         row.append(lab, rng, num);
         box.appendChild(row);
       }
     }
   }
+  syncHistory();
 }
 buildPanel();
 
