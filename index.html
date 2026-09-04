@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Motion Gallery</title>
+<!--
+  Motion Gallery — a browser tool for photo-carousel / photo-sphere motion graphics.
+  Original work. Only third-party runtime dependency: three.js (r0.160, MIT License).
+  Timing curves, tile shader, layout math and default tuning are all implemented here
+  from standard public techniques (cubic-bezier evaluation, Fibonacci-sphere point
+  distribution, rounded-box SDF, IEC 61966-2-1 sRGB transfer).
+-->
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0b0b0d; --panel: #141417; --panel-2: #1b1b1f; --line: #292930;
+    --txt: #e8e8ec; --muted: #8a8a94; --on: #ffffff; --active: #34343d;
+    --accent: #7be0b0; --accent-ink: #06130c; --stage: #000000;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--txt); overflow: hidden;
+    font: 13px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+
+  #app { display: flex; height: calc(100% - 60px); }
+  .col { width: 300px; padding: 16px; overflow-y: auto; flex-shrink: 0; }
+  #left { border-right: 1px solid var(--line); }
+  #right { border-left: 1px solid var(--line); width: 320px; }
+
+  .brand { display: flex; align-items: center; font-weight: 650; font-size: 14px; margin-bottom: 14px; }
+  .brand b { background: var(--accent); color: var(--accent-ink); border-radius: 6px;
+    padding: 2px 6px; margin-right: 9px; font-size: 12px; letter-spacing: .04em; }
+
+  .kicker { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 18px 0 9px; }
+  .kicker.first { margin-top: 0; }
+  .cap { font-size: 12px; color: var(--muted); margin: 13px 0 6px; }
+
+  select.sel { width: 100%; background: var(--panel-2); color: var(--txt);
+    border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; margin-top: 8px; }
+
+  .seg { display: flex; gap: 3px; background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 3px; }
+  .seg button { flex: 1; border: 0; background: transparent; color: var(--muted); padding: 6px 3px; border-radius: 6px; font-size: 12px; }
+  .seg button.on { background: var(--active); color: var(--on); }
+
+  .row { display: flex; align-items: center; justify-content: space-between; margin-top: 8px;
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 9px; padding: 8px 12px;
+    cursor: ew-resize; user-select: none; }
+  .row label { color: var(--muted); font-size: 12px; pointer-events: none; }
+  .row input { width: 84px; background: transparent; border: 0; color: var(--txt);
+    text-align: right; font: inherit; padding: 0; outline: none; }
+
+  #stage { flex: 1; min-width: 0; display: grid; place-items: center; background: var(--stage); padding: 20px; }
+  #stage .frame { position: relative; aspect-ratio: 16 / 9; max-width: 100%; max-height: 100%;
+    background: #000; border-radius: 4px; overflow: hidden; box-shadow: 0 0 0 1px var(--line); }
+  #view { display: block; width: 100%; height: 100%; }
+  #rec { position: absolute; left: 12px; top: 12px; display: none; align-items: center; gap: 7px;
+    font-size: 11px; letter-spacing: .1em; color: #ff7a7a; }
+  #rec::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: #ff5b5b; animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: .25; } }
+
+  .btn { width: 100%; background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 9px; padding: 10px; color: var(--txt); margin: 4px 0 10px; }
+  .btn.go { background: var(--accent); color: var(--accent-ink); border: 0; font-weight: 650; }
+  .meta { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; margin: 2px 0 8px; }
+  .meta button { background: none; border: 0; color: var(--muted); }
+  .tile { display: flex; align-items: center; gap: 10px; padding: 6px; border-radius: 8px; }
+  .tile:hover { background: var(--panel-2); }
+  .tile img { width: 30px; height: 38px; object-fit: cover; border-radius: 4px; background: var(--panel-2); flex-shrink: 0; }
+  .tile .nm { flex: 1; font-size: 12px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .tile.hidden .nm, .tile.hidden img { opacity: .35; }
+  .tile button { background: none; border: 0; color: var(--muted); padding: 2px 5px; border-radius: 5px; }
+  .tile button:hover { color: var(--txt); }
+
+  #bar { height: 60px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 16px; padding: 0 16px; }
+  #pp { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line);
+    background: var(--panel-2); display: grid; place-items: center; flex-shrink: 0; }
+  #time { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; min-width: 96px; flex-shrink: 0; }
+  #scrub { position: relative; flex: 1; height: 34px; cursor: pointer; }
+  #scrub .rail { position: absolute; inset: 50% 0 auto 0; height: 3px; transform: translateY(-50%); background: var(--line); border-radius: 2px; }
+  #scrub .done { position: absolute; left: 0; top: 50%; height: 3px; transform: translateY(-50%); background: var(--accent); border-radius: 2px; }
+  #scrub .knob { position: absolute; top: 50%; width: 3px; height: 20px; transform: translate(-50%, -50%); background: var(--txt); border-radius: 2px; }
+  #scrub .mk { position: absolute; top: 4px; font-size: 10px; color: var(--muted); transform: translateX(-50%); }
+  #exp { position: relative; flex-shrink: 0; }
+  #exp .btn { width: auto; margin: 0; padding: 9px 16px; display: flex; align-items: center; gap: 8px; }
+  #menu { position: absolute; right: 0; bottom: 46px; min-width: 200px; display: none;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 6px; }
+  #menu button { display: block; width: 100%; text-align: left; background: none; border: 0;
+    padding: 9px 10px; border-radius: 7px; color: var(--txt); }
+  #menu button:hover { background: var(--panel-2); }
+  #menu .note { color: var(--muted); font-size: 11px; padding: 6px 10px 2px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="col" id="left"></div>
+  <div id="stage">
+    <div class="frame">
+      <canvas id="view"></canvas>
+      <div id="rec">REC</div>
+    </div>
+  </div>
+  <div class="col" id="right">
+    <div class="kicker first">Images</div>
+    <button class="btn" id="add">＋ Import images</button>
+    <input type="file" id="file" accept="image/*" multiple hidden />
+    <div class="meta"><span id="count">0 images</span><button id="wipe">Clear all</button></div>
+    <div id="list"></div>
+  </div>
+</div>
+
+<div id="bar">
+  <button id="pp">▶</button>
+  <div id="time">0:00 / 0:10</div>
+  <div id="scrub"><div class="rail"></div><div class="done"></div><div class="knob"></div></div>
+  <div id="exp">
+    <button class="btn go" id="export">⤓ Export</button>
+    <div id="menu">
+      <div class="note">Rendered from the preview frame</div>
+      <button data-fmt="webm">Video — WebM (10s loop)</button>
+      <button data-fmt="png">Still — PNG</button>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+
+<script type="module">
+import * as THREE from "three";  // three.js r0.160 — MIT License, © three.js authors
+
+const TAU = Math.PI * 2;
+const clamp = (v, lo, hi) => v < lo ? lo : v > hi ? hi : v;
+const sat = (v) => v < 0 ? 0 : v > 1 ? 1 : v;
+const mix = (a, b, t) => a + (b - a) * t;
+
+/* ------------------------------------------------------------------ *
+ *  Timing curve
+ *  A cubic-bezier from (0,0) through (x1,y1),(x2,y2) to (1,1).
+ *  Converted to polynomial coefficients; for an input time we solve
+ *  x(t) = time with a handful of Newton steps and read y(t).
+ * ------------------------------------------------------------------ */
+function makeCurve(x1, y1, x2, y2) {
+  const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx;
+  const cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+  const X = (t) => ((ax * t + bx) * t + cx) * t;
+  const Y = (t) => ((ay * t + by) * t + cy) * t;
+  const dX = (t) => (3 * ax * t + 2 * bx) * t + cx;
+  return (time) => {
+    if (time <= 0) return 0;
+    if (time >= 1) return 1;
+    let t = time;
+    for (let i = 0; i < 8; i++) {
+      const gap = X(t) - time;
+      if (gap > -1e-5 && gap < 1e-5) return Y(t);
+      const s = dX(t);
+      if (s > -1e-6 && s < 1e-6) break;
+      t -= gap / s;
+    }
+    return Y(t < 0 ? 0 : t > 1 ? 1 : t);
+  };
+}
+
+const CURVES = [
+  { name: "Linear",  p: [0.33, 0.33, 0.67, 0.67] },
+  { name: "Smooth",  p: [0.40, 0.00, 0.20, 1.00] },
+  { name: "Gentle",  p: [0.25, 0.10, 0.25, 1.00] },
+  { name: "Snappy",  p: [0.80, 0.00, 0.20, 1.00] },
+  { name: "Ease In", p: [0.55, 0.05, 0.85, 0.30] },
+  { name: "Ease Out",p: [0.15, 0.70, 0.45, 1.00] },
+  { name: "Back",    p: [0.50, -0.30, 0.50, 1.25] },
+];
+
+/* ------------------------------------------------------------------ *
+ *  Tile material — textured quad with an optional rounded-rect mask,
+ *  a fade-to-background factor, an optional horizontal mirror, and a
+ *  linear->display conversion (custom materials skip three's own).
+ * ------------------------------------------------------------------ */
+function tileMaterial() {
+  return new THREE.ShaderMaterial({
+    transparent: false,
+    side: THREE.DoubleSide,
+    uniforms: {
+      uTex:   { value: null },
+      uCorner:{ value: 0 },
+      uRatio: { value: 1 },
+      uFade:  { value: 0 },
+      uMirror:{ value: 0 },
+      uBack:  { value: new THREE.Color(0, 0, 0) },
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+    `,
+    fragmentShader: `
+      precision highp float;
+      uniform sampler2D uTex;
+      uniform float uCorner, uRatio, uFade, uMirror;
+      uniform vec3 uBack;
+      varying vec2 vUv;
+
+      float sdBox(vec2 pt, vec2 ext, float rad){
+        vec2 q = abs(pt) - ext + rad;
+        return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - rad;
+      }
+      vec3 encode(vec3 c){
+        return mix(c * 12.92, 1.055 * pow(c, vec3(0.41666)) - 0.055, step(0.0031308, c));
+      }
+      void main(){
+        if (uCorner > 0.0005){
+          vec2 pt  = vec2(vUv.x - 0.5, (vUv.y - 0.5) * uRatio);
+          vec2 ext = vec2(0.5, uRatio * 0.5);
+          if (sdBox(pt, ext, uCorner) > 0.0) discard;
+        }
+        vec2 uv = vec2(uMirror > 0.5 ? 1.0 - vUv.x : vUv.x, vUv.y);
+        vec4 texel = texture2D(uTex, uv);
+        if (texel.a < 0.5) discard;
+        gl_FragColor = vec4(mix(encode(texel.rgb), uBack, uFade), texel.a);
+      }
+    `,
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ *  Procedural placeholder art — a numbered gradient card, drawn on a
+ *  canvas so it is same-origin and never taints an export.
+ * ------------------------------------------------------------------ */
+function placeholder(n) {
+  const cv = document.createElement("canvas");
+  cv.width = 480; cv.height = 600;
+  const g = cv.getContext("2d");
+  const hue = (n * 53) % 360;
+  const grad = g.createLinearGradient(0, 0, 480, 600);
+  grad.addColorStop(0, `hsl(${hue}, 46%, 44%)`);
+  grad.addColorStop(1, `hsl(${(hue + 55) % 360}, 52%, 20%)`);
+  g.fillStyle = grad; g.fillRect(0, 0, 480, 600);
+  g.fillStyle = "rgba(255,255,255,0.9)";
+  g.font = "600 168px ui-sans-serif, system-ui, sans-serif";
+  g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillText(String(n), 240, 300);
+  return cv.toDataURL("image/png");
+}
+
+/* ------------------------------------------------------------------ *
+ *  Engine
+ *  stage -> pivot (fixed tilt) -> spinner (animated) -> tiles[]
+ * ------------------------------------------------------------------ */
+class Engine {
+  constructor(canvas, cfg, sources) {
+    this.cfg = { ...cfg };
+    this.sources = sources.slice();
+    this.tiles = [];
+    this.quad = new THREE.PlaneGeometry(1, 1);
+    this.tex = new Map();
+    this.ratio = new Map();
+    this._p = new THREE.Vector3();
+    this._q = new THREE.Quaternion();
+    this._setCurve();
+
+    this.gl = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true });
+    this.gl.setPixelRatio(1);
+    this.gl.setSize(1920, 1080, false);
+    this.gl.setClearColor(0x000000, 1);
+
+    this.stage = new THREE.Scene();
+    this.cam = new THREE.PerspectiveCamera(50, 16 / 9, 1, 5e5);
+    this.cam.position.set(0, 0, this.cfg.dist);
+    this.cam.lookAt(0, 0, 0);
+
+    this.pivot = new THREE.Group();
+    this.spinner = new THREE.Group();
+    this.pivot.add(this.spinner);
+    this.stage.add(this.pivot);
+
+    this._load();
+    this.build();
+    this.tilt();
+    this.lens();
+  }
+
+  _setCurve() { this.curve = makeCurve(...this.cfg.curve); }
+
+  _load() {
+    const L = new THREE.TextureLoader();
+    for (const src of this.sources) {
+      if (!src || this.tex.has(src)) continue;
+      const t = L.load(src, (tx) => {
+        const im = tx.image, w = im.naturalWidth || im.width, h = im.naturalHeight || im.height;
+        if (w > 0) { this.ratio.set(src, h / w); this.lay(); }
+      });
+      t.colorSpace = THREE.SRGBColorSpace;
+      t.anisotropy = this.gl.capabilities.getMaxAnisotropy();
+      t.minFilter = THREE.LinearMipmapLinearFilter;
+      t.generateMipmaps = true;
+      this.tex.set(src, t);
+    }
+  }
+
+  sources_(list) {
+    const next = list.slice();
+    for (const [k, t] of this.tex) if (!next.includes(k)) { t.dispose(); this.tex.delete(k); this.ratio.delete(k); }
+    this.sources = next;
+    this._load();
+    this.build();
+  }
+
+  _src(i) {
+    if (!this.sources.length) return "";
+    const n = this.sources.length;
+    return this.sources[((i % n) + n) % n];
+  }
+
+  build() {
+    const want = clamp(Math.round(this.cfg.count), 2, 400);
+    while (this.tiles.length < want) {
+      const m = new THREE.Mesh(this.quad, tileMaterial());
+      this.spinner.add(m); this.tiles.push(m);
+    }
+    while (this.tiles.length > want) {
+      const m = this.tiles.pop(); this.spinner.remove(m); m.material.dispose();
+    }
+    for (let i = 0; i < this.tiles.length; i++) {
+      const tx = this.tex.get(this._src(i)) || null;
+      const u = this.tiles[i].material.uniforms;
+      if (u.uTex.value !== tx) { u.uTex.value = tx; this.tiles[i].material.needsUpdate = true; }
+    }
+    this.lay();
+  }
+
+  lay() { this.cfg.shape === "sphere" ? this._laySphere() : this._layRing(); }
+
+  _layRing() {
+    const c = this.cfg, n = this.tiles.length;
+    if (!n) return;
+    for (let i = 0; i < n; i++) {
+      const tile = this.tiles[i];
+      const a = (i / n) * TAU, s = Math.sin(a), k = Math.cos(a);
+      if (c.axis === "z") { tile.position.set(s * c.ringRadius, k * c.ringRadius, 0); tile.rotation.set(0, 0, a); }
+      else if (c.axis === "x") { tile.position.set(0, -s * c.ringRadius, k * c.ringRadius); tile.rotation.set(a, 0, 0); }
+      else { tile.position.set(s * c.ringRadius, 0, k * c.ringRadius); tile.rotation.set(0, a, 0); }
+      if (tile.geometry !== this.quad) tile.geometry = this.quad;
+      this._fit(tile, i);
+    }
+  }
+
+  _laySphere() {
+    const c = this.cfg, n = this.tiles.length;
+    if (!n) return;
+    const rad = c.sphereRadius;
+    const golden = Math.PI * (3 - Math.sqrt(5));
+    const M = new THREE.Matrix4();
+    const dir = new THREE.Vector3(), ex = new THREE.Vector3(), ey = new THREE.Vector3();
+    const up = new THREE.Vector3(0, 1, 0), alt = new THREE.Vector3(1, 0, 0);
+    for (let i = 0; i < n; i++) {
+      const tile = this.tiles[i];
+      const y = 1 - ((i + 0.5) / n) * 2;             // even bands from top to bottom
+      const band = Math.sqrt(Math.max(0, 1 - y * y));
+      const a = golden * i;                           // golden-angle spiral around the axis
+      dir.set(Math.cos(a) * band, y, Math.sin(a) * band);
+      tile.position.copy(dir).multiplyScalar(rad);
+      if (c.face === "outward") {
+        ex.crossVectors(up, dir);
+        if (ex.lengthSq() < 1e-8) ex.crossVectors(alt, dir);
+        ex.normalize(); ey.crossVectors(dir, ex);
+        M.makeBasis(ex, ey, dir);
+        tile.quaternion.setFromRotationMatrix(M);
+      } else tile.rotation.set(0, 0, 0);
+      if (tile.geometry !== this.quad) tile.geometry = this.quad;
+      this._fit(tile, i);
+    }
+  }
+
+  _fit(tile, i) {
+    const c = this.cfg;
+    const r = this.ratio.get(this._src(i)) ?? 1.25;
+    tile.scale.set(c.tileSize, c.tileSize * r, 1);
+    const u = tile.material.uniforms;
+    u.uCorner.value = c.tileSize > 0 ? Math.min(0.5, Math.max(0, c.corner) / c.tileSize) : 0;
+    u.uRatio.value = r;
+    u.uMirror.value = c.mirror ? 1 : 0;
+  }
+
+  tilt() {
+    const c = this.cfg;
+    this.pivot.rotation.set(
+      THREE.MathUtils.degToRad(c.tiltX || 0),
+      THREE.MathUtils.degToRad(c.tiltY || 0),
+      THREE.MathUtils.degToRad(c.tiltZ || 0),
+    );
+  }
+
+  lens() {
+    const zoom = Math.max(0.05, this.cfg.lens / 100);
+    this.cam.fov = THREE.MathUtils.radToDeg(2 * Math.atan(540 / (1000 / zoom)));
+    this.cam.position.set(0, 0, this.cfg.dist);
+    this.cam.lookAt(0, 0, 0);
+    this.cam.updateProjectionMatrix();
+  }
+
+  tick(time) {
+    const c = this.cfg, n = Math.max(1, this.tiles.length);
+    for (const t of this.tiles) t.visible = true;
+
+    let angle;
+    if (c.mode === "steps") {
+      const moves = Math.max(1, c.cycles || 1);
+      const moveDur = c.loop / (n * moves);
+      const slot = moveDur + Math.max(0, c.hold);
+      const step = Math.floor(time / slot);
+      const into = sat((time - step * slot) / moveDur);
+      angle = (step + this.curve(into)) * (TAU / n);
+    } else {
+      const revs = time / Math.max(0.5, c.loop);
+      const whole = Math.floor(revs);
+      angle = (whole + this.curve(revs - whole)) * ((c.sweep ?? 360) * Math.PI / 180);
+    }
+    angle *= c.direction;
+
+    if (c.axis === "z") this.spinner.rotation.set(0, 0, angle);
+    else if (c.axis === "x") this.spinner.rotation.set(-angle, 0, 0);
+    else this.spinner.rotation.set(0, angle, 0);
+
+    this._fade();
+    if (c.face === "camera") this._billboard();
+    if (c.shape === "sphere") this._sphereScale();
+    if (c.shape === "ring" && !c.showBacks) this._cullBacks();
+  }
+
+  _fade() {
+    const strength = sat(this.cfg.fade / 100);
+    const camZ = this.cam.position.z;
+    if (strength <= 0) { for (const t of this.tiles) t.material.uniforms.uFade.value = 0; return; }
+    this.stage.updateMatrixWorld(true);
+    let lo = Infinity, hi = -Infinity;
+    for (const t of this.tiles) { t.getWorldPosition(this._p); const d = Math.abs(camZ - this._p.z); if (d < lo) lo = d; if (d > hi) hi = d; }
+    const span = Math.max(1, hi - lo);
+    for (const t of this.tiles) {
+      t.getWorldPosition(this._p);
+      const k = (Math.abs(camZ - this._p.z) - lo) / span;
+      t.material.uniforms.uFade.value = k * k * (3 - 2 * k) * strength;   // smoothstep
+    }
+  }
+
+  _billboard() {
+    this.stage.updateMatrixWorld(true);
+    for (const t of this.tiles) {
+      if (!t.parent) continue;
+      t.parent.getWorldQuaternion(this._q);
+      t.quaternion.copy(this._q).invert();
+    }
+  }
+
+  _sphereScale() {
+    const c = this.cfg;
+    this.stage.updateMatrixWorld(true);
+    const R = Math.max(1, c.sphereRadius), camZ = this.cam.position.z;
+    const back = c.backScale / 100, front = c.frontScale / 100;
+    for (const t of this.tiles) {
+      t.getWorldPosition(this._p);
+      const depth = sat((this._p.z / R + 1) / 2);              // 0 = far side, 1 = near side
+      const s = mix(back, front, depth);
+      const gain = camZ / Math.max(1, camZ - this._p.z);        // 1/z foreshortening
+      const r = t.material.uniforms.uRatio.value;
+      t.scale.set(c.tileSize * s * gain, c.tileSize * r * s * gain, 1);
+    }
+  }
+
+  _cullBacks() {
+    this.stage.updateMatrixWorld(true);
+    const nrm = new THREE.Vector3(), pos = new THREE.Vector3(), toCam = new THREE.Vector3();
+    for (const t of this.tiles) {
+      t.getWorldQuaternion(this._q);
+      nrm.set(0, 0, 1).applyQuaternion(this._q);
+      t.getWorldPosition(pos);
+      toCam.subVectors(this.cam.position, pos).normalize();
+      if (nrm.dot(toCam) <= 0) t.visible = false;
+    }
+  }
+
+  preset(cfg) {
+    this.cfg = { ...cfg };
+    this._setCurve();
+    this.build(); this.tilt(); this.lens();
+  }
+
+  patch(cfg) {
+    const was = this.cfg;
+    this.cfg = { ...cfg };
+    this._setCurve();
+    if (Math.round(cfg.count) !== Math.round(was.count)) this.build();
+    else this.lay();
+    this.tilt(); this.lens();
+  }
+
+  paint() { this.gl.render(this.stage, this.cam); }
+}
+
+/* ------------------------------------------------------------------ *
+ *  Presets  (all default numbers tuned here)
+ * ------------------------------------------------------------------ */
+const BASE = {
+  shape: "sphere", mode: "spin", axis: "y", face: "camera",
+  count: 48, tileSize: 620, ringRadius: 9000, sphereRadius: 1400,
+  dist: 2600, lens: 120, loop: 14, hold: 0.3, cycles: 1, sweep: 360,
+  direction: 1, fade: 32, corner: 16, showBacks: true, mirror: false,
+  backScale: 8, frontScale: 22, tiltX: 0, tiltY: 0, tiltZ: 0,
+  curve: CURVES[1].p,
+};
+
+const PRESETS = [
+  {
+    id: "sphere", label: "Photo Sphere",
+    cfg: { ...BASE, shape: "sphere", mode: "spin", count: 48, tileSize: 620,
+      sphereRadius: 1400, dist: 2600, lens: 120, loop: 16, fade: 32, corner: 16,
+      axis: "y", face: "camera", backScale: 8, frontScale: 22, curve: CURVES[0].p },
+    fields: [
+      { t: "seg", label: "Direction", key: "direction", opts: [[1, "Forward"], [-1, "Reverse"]] },
+      { t: "seg", label: "Spin axis", key: "axis", opts: [["y", "Y"], ["x", "X"], ["z", "Z"]] },
+      { t: "seg", label: "Timing", key: "mode", opts: [["spin", "Continuous"], ["steps", "Stepped"]] },
+      { t: "seg", label: "Tiles face", key: "face", opts: [["camera", "Camera"], ["outward", "Outward"]] },
+      { t: "seg", label: "Mirror", key: "mirror", opts: [[false, "Off"], [true, "On"]] },
+      { t: "num", label: "Tiles", key: "count", min: 3, max: 240, step: 1 },
+      { t: "num", label: "Sphere radius", key: "sphereRadius", min: 300, max: 4000, step: 10 },
+      { t: "num", label: "Tile size", key: "tileSize", min: 200, max: 2000, step: 10 },
+      { t: "num", label: "Back scale %", key: "backScale", min: 1, max: 60, step: 0.5 },
+      { t: "num", label: "Front scale %", key: "frontScale", min: 2, max: 100, step: 0.5 },
+      { t: "num", label: "Camera distance", key: "dist", min: 800, max: 12000, step: 20 },
+      { t: "num", label: "Lens", key: "lens", min: 30, max: 260, step: 1 },
+      { t: "num", label: "Tilt X", key: "tiltX", min: -90, max: 90, step: 1 },
+      { t: "num", label: "Tilt Z", key: "tiltZ", min: -90, max: 90, step: 1 },
+      { t: "num", label: "Depth fade %", key: "fade", min: 0, max: 100, step: 1 },
+      { t: "num", label: "Corner radius", key: "corner", min: 0, max: 300, step: 2 },
+      { t: "num", label: "Loop seconds", key: "loop", min: 3, max: 40, step: 0.5 },
+      { t: "curve" },
+    ],
+  },
+  {
+    id: "ring", label: "Photo Ring",
+    cfg: { ...BASE, shape: "ring", mode: "steps", count: 18, tileSize: 2600,
+      ringRadius: 9000, dist: 21000, lens: 100, loop: 12, hold: 0.35, fade: 42,
+      corner: 90, tiltX: 10, axis: "y", face: "outward", curve: CURVES[3].p },
+    fields: [
+      { t: "seg", label: "Direction", key: "direction", opts: [[1, "Forward"], [-1, "Reverse"]] },
+      { t: "seg", label: "Spin axis", key: "axis", opts: [["y", "Y"], ["x", "X"], ["z", "Z"]] },
+      { t: "seg", label: "Timing", key: "mode", opts: [["steps", "Stepped"], ["spin", "Continuous"]] },
+      { t: "seg", label: "Back tiles", key: "showBacks", opts: [[true, "Show"], [false, "Hide"]] },
+      { t: "seg", label: "Mirror", key: "mirror", opts: [[false, "Off"], [true, "On"]] },
+      { t: "num", label: "Tiles", key: "count", min: 3, max: 120, step: 1 },
+      { t: "num", label: "Ring radius", key: "ringRadius", min: 2000, max: 20000, step: 100 },
+      { t: "num", label: "Tile size", key: "tileSize", min: 500, max: 6000, step: 20 },
+      { t: "num", label: "Camera distance", key: "dist", min: 4000, max: 60000, step: 100 },
+      { t: "num", label: "Lens", key: "lens", min: 30, max: 240, step: 1 },
+      { t: "num", label: "Tilt X", key: "tiltX", min: -60, max: 60, step: 1 },
+      { t: "num", label: "Depth fade %", key: "fade", min: 0, max: 100, step: 1 },
+      { t: "num", label: "Corner radius", key: "corner", min: 0, max: 400, step: 4 },
+      { t: "num", label: "Loop seconds", key: "loop", min: 3, max: 40, step: 0.5 },
+      { t: "num", label: "Step hold", key: "hold", min: 0, max: 3, step: 0.05 },
+      { t: "curve" },
+    ],
+  },
+];
+
+/* ------------------------------------------------------------------ *
+ *  App
+ * ------------------------------------------------------------------ */
+const SPAN = 10;
+let images = Array.from({ length: 12 }, (_, i) => ({
+  name: `Tile ${String(i + 1).padStart(2, "0")}`, url: placeholder(i + 1), on: true,
+}));
+const live = () => images.filter(x => x.on).map(x => x.url);
+
+let preset = PRESETS[0];
+let CFG = { ...preset.cfg };
+const engine = new Engine(document.getElementById("view"), CFG, live());
+
+let playing = true, head = 0, anchor = performance.now();
+let recording = false, rec = null, blobs = [], loopsSeen = 0, scrubbing = false;
+
+function setHead(t) { head = t; anchor = performance.now() - t * 1000; }
+function play(on) {
+  playing = on ?? !playing;
+  if (playing) anchor = performance.now() - head * 1000;
+  pp.textContent = playing ? "⏸" : "▶";
+}
+
+function loop() {
+  requestAnimationFrame(loop);
+  const now = performance.now();
+  if (playing && !scrubbing) {
+    const raw = (now - anchor) / 1000;
+    if (recording && Math.floor(raw / SPAN) > loopsSeen) { loopsSeen = Math.floor(raw / SPAN); stopRec(); }
+    head = raw % SPAN;
+  }
+  engine.tick(head);
+  engine.paint();
+  const r = head / SPAN;
+  done.style.width = knob.style.left = (r * 100) + "%";
+  const mmss = (n) => `${Math.floor(n / 60)}:${String(Math.floor(n % 60)).padStart(2, "0")}`;
+  timeEl.textContent = `${mmss(head)} / ${mmss(SPAN)}`;
+}
+
+/* ---- left panel ---- */
+const left = document.getElementById("left");
+const shown = (v, step) => step < 1 ? Number(v).toFixed(2) : String(Math.round(v));
+
+function apply(key, val) {
+  CFG[key] = val;
+  engine.patch(CFG);
+  const inp = left.querySelector(`input[data-key="${key}"]`);
+  if (inp) inp.value = shown(val, inp.dataset.step);
+}
+
+function buildPanel() {
+  left.innerHTML = `<div class="brand"><b>MG</b> Motion Gallery</div><div class="kicker first">Preset</div>`;
+  const sel = document.createElement("select");
+  sel.className = "sel";
+  for (const p of PRESETS) {
+    const o = document.createElement("option");
+    o.value = p.id; o.textContent = p.label;
+    if (p.id === preset.id) o.selected = true;
+    sel.appendChild(o);
+  }
+  sel.onchange = () => {
+    preset = PRESETS.find(p => p.id === sel.value);
+    CFG = { ...preset.cfg };
+    engine.preset(CFG);
+    setHead(0);
+    buildPanel();
+  };
+  left.appendChild(sel);
+
+  for (const f of preset.fields) {
+    if (f.t === "seg") {
+      const cap = document.createElement("div"); cap.className = "cap"; cap.textContent = f.label; left.appendChild(cap);
+      const seg = document.createElement("div"); seg.className = "seg";
+      for (const [val, txt] of f.opts) {
+        const b = document.createElement("button"); b.textContent = txt;
+        if (String(CFG[f.key]) === String(val)) b.classList.add("on");
+        b.onclick = () => {
+          let v = val;
+          if (v === "true") v = true; else if (v === "false") v = false;
+          CFG[f.key] = v; engine.patch(CFG);
+          seg.querySelectorAll("button").forEach(x => x.classList.remove("on"));
+          b.classList.add("on");
+        };
+        seg.appendChild(b);
+      }
+      left.appendChild(seg);
+    } else if (f.t === "num") {
+      const row = document.createElement("div"); row.className = "row";
+      const lab = document.createElement("label"); lab.textContent = f.label;
+      const inp = document.createElement("input");
+      inp.value = shown(CFG[f.key], f.step); inp.dataset.key = f.key; inp.dataset.step = f.step;
+      inp.onchange = () => apply(f.key, clamp(parseFloat(inp.value) || f.min, f.min, f.max));
+      row.append(lab, inp);
+      row.addEventListener("pointerdown", (e) => {
+        if (e.target === inp) return;
+        e.preventDefault();
+        const x0 = e.clientX, v0 = parseFloat(CFG[f.key]), reach = f.max - f.min;
+        const move = (ev) => {
+          let v = clamp(v0 + (ev.clientX - x0) / 260 * reach, f.min, f.max);
+          apply(f.key, Math.round(v / f.step) * f.step);
+        };
+        const up = () => { removeEventListener("pointermove", move); removeEventListener("pointerup", up); };
+        addEventListener("pointermove", move); addEventListener("pointerup", up);
+      });
+      left.appendChild(row);
+    } else if (f.t === "curve") {
+      const cap = document.createElement("div"); cap.className = "cap"; cap.textContent = "Easing"; left.appendChild(cap);
+      const s = document.createElement("select"); s.className = "sel";
+      CURVES.forEach((c, i) => {
+        const o = document.createElement("option");
+        o.value = i; o.textContent = c.name;
+        if (JSON.stringify(c.p) === JSON.stringify(CFG.curve)) o.selected = true;
+        s.appendChild(o);
+      });
+      s.onchange = () => { CFG.curve = CURVES[+s.value].p; engine.patch(CFG); };
+      left.appendChild(s);
+    }
+  }
+}
+buildPanel();
+
+/* ---- images ---- */
+const listEl = document.getElementById("list");
+const countEl = document.getElementById("count");
+const fileEl = document.getElementById("file");
+document.getElementById("add").onclick = () => fileEl.click();
+fileEl.onchange = (e) => {
+  for (const f of e.target.files) images.push({ name: f.name.replace(/\.[^.]+$/, ""), url: URL.createObjectURL(f), on: true });
+  fileEl.value = "";
+  sync(); renderList();
+};
+document.getElementById("wipe").onclick = () => { images = []; sync(); renderList(); };
+
+function sync() {
+  const urls = live();
+  engine.sources_(urls.length ? urls : [placeholder(1)]);
+}
+function renderList() {
+  countEl.textContent = `${images.length} image${images.length === 1 ? "" : "s"}`;
+  listEl.innerHTML = "";
+  images.forEach((im, i) => {
+    const row = document.createElement("div");
+    row.className = "tile" + (im.on ? "" : " hidden");
+    row.innerHTML = `<img src="${im.url}" alt=""><div class="nm">${im.name}</div>
+      <button data-t title="Show/hide">${im.on ? "◉" : "○"}</button>
+      <button data-x title="Remove">✕</button>`;
+    row.querySelector("[data-t]").onclick = () => { im.on = !im.on; sync(); renderList(); };
+    row.querySelector("[data-x]").onclick = () => { images.splice(i, 1); sync(); renderList(); };
+    listEl.appendChild(row);
+  });
+}
+renderList();
+
+/* ---- transport ---- */
+const pp = document.getElementById("pp");
+const timeEl = document.getElementById("time");
+const scrub = document.getElementById("scrub");
+const done = scrub.querySelector(".done");
+const knob = scrub.querySelector(".knob");
+for (let s = 0; s <= SPAN; s += 2) {
+  const m = document.createElement("div");
+  m.className = "mk"; m.style.left = (s / SPAN * 100) + "%"; m.textContent = s + "s";
+  scrub.appendChild(m);
+}
+pp.onclick = () => play();
+const seek = (e) => {
+  const r = scrub.getBoundingClientRect();
+  setHead(clamp((e.clientX - r.left) / r.width, 0, 1) * SPAN);
+};
+scrub.addEventListener("pointerdown", (e) => { scrubbing = true; seek(e); });
+addEventListener("pointermove", (e) => { if (scrubbing) seek(e); });
+addEventListener("pointerup", () => { if (scrubbing) { scrubbing = false; anchor = performance.now() - head * 1000; } });
+
+/* ---- export ---- */
+const menu = document.getElementById("menu");
+document.getElementById("export").onclick = () => { menu.style.display = menu.style.display === "block" ? "none" : "block"; };
+addEventListener("click", (e) => { if (!document.getElementById("exp").contains(e.target)) menu.style.display = "none"; });
+menu.querySelectorAll("button").forEach(b => b.onclick = () => { menu.style.display = "none"; b.dataset.fmt === "png" ? savePNG() : saveWEBM(); });
+
+function grab(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+function savePNG() {
+  engine.paint();
+  engine.gl.domElement.toBlob((b) => b && grab(b, "motion-gallery.png"), "image/png");
+}
+function saveWEBM() {
+  if (recording) return;
+  const cand = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
+  const type = cand.find(t => MediaRecorder.isTypeSupported(t));
+  if (!type) { alert("This browser cannot record WebM."); return; }
+  rec = new MediaRecorder(engine.gl.domElement.captureStream(30), { mimeType: type, videoBitsPerSecond: 12_000_000 });
+  blobs = [];
+  rec.ondataavailable = (e) => e.data.size && blobs.push(e.data);
+  rec.onstop = () => { grab(new Blob(blobs, { type: "video/webm" }), "motion-gallery.webm"); document.getElementById("rec").style.display = "none"; };
+  setHead(0); loopsSeen = 0; play(true);
+  recording = true;
+  document.getElementById("rec").style.display = "flex";
+  rec.start();
+}
+function stopRec() { recording = false; try { rec.stop(); } catch {} }
+
+play(true);
+loop();
+</script>
+</body>
+</html>
