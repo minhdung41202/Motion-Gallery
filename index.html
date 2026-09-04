@@ -40,6 +40,14 @@
   select.sel { width: 100%; background: var(--panel-2); color: var(--txt);
     border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; margin-top: 8px; }
 
+  .curve-box { margin-top: 8px; background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 9px; padding: 10px; display: flex; justify-content: center; touch-action: none; }
+  .curve-frame { fill: none; stroke: var(--line); }
+  .curve-path { fill: none; stroke: var(--accent); stroke-width: 2.5; }
+  .curve-arm { stroke: var(--muted); stroke-dasharray: 3 3; }
+  .curve-handle { fill: var(--accent); stroke: var(--bg); stroke-width: 2; cursor: grab; }
+  .curve-handle:active { cursor: grabbing; }
+
   .seg { display: flex; gap: 3px; background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 3px; }
   .seg button { flex: 1; border: 0; background: transparent; color: var(--muted); padding: 6px 3px; border-radius: 6px; font-size: 12px; }
   .seg button.on { background: var(--active); color: var(--on); }
@@ -210,6 +218,61 @@ const CURVES = [
   { name: "Ease Out",p: [0.15, 0.70, 0.45, 1.00] },
   { name: "Back",    p: [0.50, -0.30, 0.50, 1.25] },
 ];
+
+/* ------------------------------------------------------------------ *
+ *  Draggable bezier graph — the standard 2-handle curve editor
+ *  (cubic-bezier.com / devtools style). Handles write into `get()`'s
+ *  curve array and call `onChange` after every drag.
+ * ------------------------------------------------------------------ */
+function curveGraph(host, get, onChange) {
+  const NS = "http://www.w3.org/2000/svg";
+  const YMIN = -0.5, YMAX = 1.5;                 // visible range beyond 0..1 for overshoot curves
+  const el = (tag, cls) => { const n = document.createElementNS(NS, tag); if (cls) n.setAttribute("class", cls); return n; };
+  const svg = el("svg");
+  svg.setAttribute("viewBox", `-25 ${-((YMAX - 1) * 100)} 150 ${100 * (YMAX - YMIN)}`);
+  svg.setAttribute("width", "120"); svg.setAttribute("height", "120");
+  const frame = el("rect", "curve-frame");
+  frame.setAttribute("x", 0); frame.setAttribute("y", 0); frame.setAttribute("width", 100); frame.setAttribute("height", 100);
+  const arm1 = el("line", "curve-arm"), arm2 = el("line", "curve-arm");
+  const path = el("path", "curve-path");
+  const h1 = el("circle", "curve-handle"), h2 = el("circle", "curve-handle");
+  h1.setAttribute("r", 6); h2.setAttribute("r", 6);
+  svg.append(frame, arm1, arm2, path, h1, h2);
+  host.appendChild(svg);
+
+  const toSvg = (x, y) => [x * 100, (1 - y) * 100];
+  const fromSvg = (sx, sy) => [clamp(sx / 100, 0, 1), clamp(1 - sy / 100, YMIN, YMAX)];
+
+  function draw() {
+    const [x1, y1, x2, y2] = get();
+    const [sx1, sy1] = toSvg(x1, y1), [sx2, sy2] = toSvg(x2, y2);
+    arm1.setAttribute("x1", 0); arm1.setAttribute("y1", 100); arm1.setAttribute("x2", sx1); arm1.setAttribute("y2", sy1);
+    arm2.setAttribute("x1", 100); arm2.setAttribute("y1", 0); arm2.setAttribute("x2", sx2); arm2.setAttribute("y2", sy2);
+    path.setAttribute("d", `M0,100 C${sx1},${sy1} ${sx2},${sy2} 100,0`);
+    h1.setAttribute("cx", sx1); h1.setAttribute("cy", sy1);
+    h2.setAttribute("cx", sx2); h2.setAttribute("cy", sy2);
+  }
+  draw();
+
+  function wire(handle, isFirst) {
+    handle.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      handle.setPointerCapture(e.pointerId);
+      const move = (ev) => {
+        const pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY;
+        const loc = pt.matrixTransform(svg.getScreenCTM().inverse());
+        const [x, y] = fromSvg(loc.x, loc.y);
+        const cur = get();
+        onChange(isFirst ? [x, y, cur[2], cur[3]] : [cur[0], cur[1], x, y]);
+        draw();
+      };
+      const up = () => { removeEventListener("pointermove", move); removeEventListener("pointerup", up); };
+      addEventListener("pointermove", move); addEventListener("pointerup", up);
+    });
+  }
+  wire(h1, true); wire(h2, false);
+  return draw;
+}
 
 /* ------------------------------------------------------------------ *
  *  Tile material — textured quad with an optional rounded-rect mask,
@@ -714,8 +777,10 @@ function buildPanel() {
         if (JSON.stringify(c.p) === JSON.stringify(CFG.curve)) o.selected = true;
         s.appendChild(o);
       });
-      s.onchange = () => { CFG.curve = CURVES[+s.value].p; engine.patch(CFG); };
       left.appendChild(s);
+      const box = document.createElement("div"); box.className = "curve-box"; left.appendChild(box);
+      const redraw = curveGraph(box, () => CFG.curve, (next) => { CFG.curve = next; engine.patch(CFG); });
+      s.onchange = () => { CFG.curve = CURVES[+s.value].p.slice(); engine.patch(CFG); redraw(); };
     }
   }
 }
