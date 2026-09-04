@@ -41,23 +41,23 @@
     border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; margin-top: 8px; }
 
   .curve-box { margin-top: 8px; background: var(--panel-2); border: 1px solid var(--line);
-    border-radius: 9px; padding: 10px; display: flex; justify-content: center; touch-action: none; }
+    border-radius: 12px; padding: 16px; touch-action: none; }
+  .curve-box svg { display: block; width: 100%; height: auto; aspect-ratio: 1 / 1; overflow: visible; }
   .curve-frame { fill: none; stroke: var(--line); }
-  .curve-path { fill: none; stroke: var(--accent); stroke-width: 2.5; }
-  .curve-arm { stroke: var(--muted); stroke-dasharray: 3 3; }
-  .curve-handle { fill: var(--accent); stroke: var(--bg); stroke-width: 2; cursor: grab; }
+  .curve-path { fill: none; stroke: var(--txt); stroke-width: 2.5; stroke-linecap: round; }
+  .curve-arm { stroke: var(--muted); stroke-dasharray: 1 5; stroke-linecap: round; }
+  .curve-handle { fill: var(--txt); stroke: var(--bg); stroke-width: 2; cursor: grab; }
   .curve-handle:active { cursor: grabbing; }
 
   .seg { display: flex; gap: 3px; background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 3px; }
   .seg button { flex: 1; border: 0; background: transparent; color: var(--muted); padding: 6px 3px; border-radius: 6px; font-size: 12px; }
   .seg button.on { background: var(--active); color: var(--on); }
 
-  .row { display: flex; align-items: center; justify-content: space-between; margin-top: 8px;
-    background: var(--panel-2); border: 1px solid var(--line); border-radius: 9px; padding: 8px 12px;
-    cursor: ew-resize; user-select: none; }
-  .row label { color: var(--muted); font-size: 12px; pointer-events: none; }
-  .row input { width: 84px; background: transparent; border: 0; color: var(--txt);
-    text-align: right; font: inherit; padding: 0; outline: none; }
+  .row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  .row label { color: var(--muted); font-size: 12px; width: 72px; flex-shrink: 0; }
+  .row input[type=range] { flex: 1; accent-color: var(--txt); }
+  .row input[type=number] { width: 58px; background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 7px; padding: 6px 8px; color: var(--txt); text-align: right; font: inherit; outline: none; }
 
   #stage { flex: 1; min-width: 0; display: grid; place-items: center; background: var(--stage); padding: 20px; }
   #stage .frame { position: relative; aspect-ratio: 16 / 9; max-width: 100%; max-height: 100%;
@@ -709,8 +709,7 @@ const shown = (v, step) => step < 1 ? Number(v).toFixed(2) : String(Math.round(v
 function apply(key, val) {
   CFG[key] = val;
   engine.patch(CFG);
-  const inp = left.querySelector(`input[data-key="${key}"]`);
-  if (inp) inp.value = shown(val, inp.dataset.step);
+  for (const inp of left.querySelectorAll(`[data-key="${key}"]`)) inp.value = inp.type === "number" ? shown(val, inp.dataset.step) : val;
 }
 
 function buildPanel() {
@@ -752,21 +751,15 @@ function buildPanel() {
     } else if (f.t === "num") {
       const row = document.createElement("div"); row.className = "row";
       const lab = document.createElement("label"); lab.textContent = f.label;
-      const inp = document.createElement("input");
-      inp.value = shown(CFG[f.key], f.step); inp.dataset.key = f.key; inp.dataset.step = f.step;
-      inp.onchange = () => apply(f.key, clamp(parseFloat(inp.value) || f.min, f.min, f.max));
-      row.append(lab, inp);
-      row.addEventListener("pointerdown", (e) => {
-        if (e.target === inp) return;
-        e.preventDefault();
-        const x0 = e.clientX, v0 = parseFloat(CFG[f.key]), reach = f.max - f.min;
-        const move = (ev) => {
-          let v = clamp(v0 + (ev.clientX - x0) / 260 * reach, f.min, f.max);
-          apply(f.key, Math.round(v / f.step) * f.step);
-        };
-        const up = () => { removeEventListener("pointermove", move); removeEventListener("pointerup", up); };
-        addEventListener("pointermove", move); addEventListener("pointerup", up);
-      });
+      const rng = document.createElement("input");
+      rng.type = "range"; rng.min = f.min; rng.max = f.max; rng.step = f.step;
+      rng.value = CFG[f.key]; rng.dataset.key = f.key;
+      const num = document.createElement("input");
+      num.type = "number"; num.min = f.min; num.max = f.max; num.step = f.step;
+      num.value = shown(CFG[f.key], f.step); num.dataset.key = f.key; num.dataset.step = f.step;
+      rng.oninput = () => apply(f.key, parseFloat(rng.value));
+      num.onchange = () => apply(f.key, clamp(parseFloat(num.value) || f.min, f.min, f.max));
+      row.append(lab, rng, num);
       left.appendChild(row);
     } else if (f.t === "curve") {
       const cap = document.createElement("div"); cap.className = "cap"; cap.textContent = "Easing"; left.appendChild(cap);
