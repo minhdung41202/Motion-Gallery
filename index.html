@@ -119,15 +119,15 @@
   .tile button:hover { color: var(--txt); background: var(--line); }
   .tile button svg { display: block; }
 
-  #bar { height: 60px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 16px; padding: 0 16px; }
+  #bar { height: 64px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 20px; padding: 0 18px; }
   #pp { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line);
     background: var(--panel-2); display: grid; place-items: center; flex-shrink: 0; }
   #time { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; min-width: 96px; flex-shrink: 0; }
-  #scrub { position: relative; flex: 1; height: 34px; cursor: pointer; }
-  #scrub .rail { position: absolute; inset: 50% 0 auto 0; height: 3px; transform: translateY(-50%); background: var(--line); border-radius: 2px; }
-  #scrub .done { position: absolute; left: 0; top: 50%; height: 3px; transform: translateY(-50%); background: var(--accent); border-radius: 2px; }
-  #scrub .knob { position: absolute; top: 50%; width: 3px; height: 20px; transform: translate(-50%, -50%); background: var(--txt); border-radius: 2px; }
-  #scrub .mk { position: absolute; top: 4px; font-size: 10px; color: var(--muted); transform: translateX(-50%); }
+  #scrub { position: relative; flex: 1; height: 44px; cursor: pointer; }
+  #scrub .rail { position: absolute; left: 0; right: 0; bottom: 8px; height: 3px; background: var(--line); border-radius: 2px; }
+  #scrub .done { position: absolute; left: 0; bottom: 8px; height: 3px; background: var(--accent); border-radius: 2px; }
+  #scrub .knob { position: absolute; bottom: 9px; width: 3px; height: 20px; transform: translate(-50%, 50%); background: var(--txt); border-radius: 2px; }
+  #scrub .mk { position: absolute; top: 0; font-size: 10px; color: var(--muted); transform: translateX(-50%); }
   #exp { position: relative; flex-shrink: 0; }
   #exp .btn { width: auto; margin: 0; padding: 9px 16px; display: flex; align-items: center; gap: 8px; }
   #menu { position: absolute; right: 0; bottom: 46px; min-width: 200px; display: none;
@@ -1794,6 +1794,8 @@ const knob = scrub.querySelector(".knob");
 for (let s = 0; s <= SPAN; s += 2) {
   const m = document.createElement("div");
   m.className = "mk"; m.style.left = (s / SPAN * 100) + "%"; m.textContent = s + "s";
+  if (s === 0) m.style.transform = "none";
+  else if (s === SPAN) m.style.transform = "translateX(-100%)";
   scrub.appendChild(m);
 }
 pp.onclick = () => play();
