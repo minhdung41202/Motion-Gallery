@@ -41,10 +41,21 @@
 
   .kicker { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 18px 0 9px; }
   .kicker.first { margin-top: 0; }
-  .cap { font-size: 12px; color: var(--muted); margin: 13px 0 6px; }
+  .cap { font-size: 11px; color: var(--muted); margin: 14px 0 5px; }
 
   select.sel { width: 100%; background: var(--panel-2); color: var(--txt);
     border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; margin-top: 8px; }
+
+  /* Lightroom-style collapsible sections */
+  .sec { border-top: 1px solid var(--line); }
+  .sec:first-of-type { border-top: 0; }
+  .sec-head { display: flex; align-items: center; gap: 8px; padding: 11px 2px; cursor: pointer; user-select: none; }
+  .sec-head .chev { color: var(--muted); font-size: 9px; width: 8px; text-align: center; transition: transform .15s; }
+  .sec-head .nm { flex: 1; font-size: 12px; color: var(--txt); }
+  .sec-head .eye { color: var(--muted); opacity: .4; font-size: 12px; pointer-events: none; }
+  .sec.closed .chev { transform: rotate(-90deg); }
+  .sec.closed .sec-body { display: none; }
+  .sec-body { padding: 2px 0 14px; }
 
   .curve-box { margin-top: 8px; background: var(--panel-2); border: 1px solid var(--line);
     border-radius: 12px; padding: 12px; touch-action: none; }
@@ -59,11 +70,26 @@
   .seg button { flex: 1; border: 0; background: transparent; color: var(--muted); padding: 6px 3px; border-radius: 6px; font-size: 12px; }
   .seg button.on { background: var(--active); color: var(--on); }
 
-  .row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
-  .row label { color: var(--muted); font-size: 12px; width: 72px; flex-shrink: 0; }
-  .row input[type=range] { flex: 1; accent-color: var(--txt); }
-  .row input[type=number] { width: 58px; background: var(--panel-2); border: 1px solid var(--line);
-    border-radius: 7px; padding: 6px 8px; color: var(--txt); text-align: right; font: inherit; outline: none; }
+  /* Lightroom-style slider: label + value on top, thin track + round thumb below */
+  .row { margin-top: 13px; }
+  .row .row-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+  .row label { color: var(--txt); font-size: 12px; }
+  .row input[type=number] { width: 66px; background: transparent; border: 1px solid transparent;
+    border-radius: 5px; padding: 1px 4px; color: var(--muted); text-align: right; font: inherit;
+    font-variant-numeric: tabular-nums; outline: none; }
+  .row input[type=number]:hover { color: var(--txt); }
+  .row input[type=number]:focus { color: var(--txt); border-color: var(--line); background: var(--panel-2); }
+
+  .row input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 13px;
+    margin: 0; background: transparent; cursor: pointer; display: block; }
+  .row input[type=range]::-webkit-slider-runnable-track { height: 2px; border-radius: 2px; background: #4a4a53; }
+  .row input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none;
+    width: 13px; height: 13px; margin-top: -5.5px; border-radius: 50%; background: #cccdd3;
+    box-shadow: 0 1px 3px rgba(0,0,0,.55); }
+  .row input[type=range]:hover::-webkit-slider-thumb { background: #fff; }
+  .row input[type=range]:active::-webkit-slider-thumb { background: #fff; }
+  .row input[type=range]::-moz-range-track { height: 2px; border-radius: 2px; background: #4a4a53; }
+  .row input[type=range]::-moz-range-thumb { width: 13px; height: 13px; border: 0; border-radius: 50%; background: #cccdd3; }
 
   #stage { flex: 1; min-width: 0; display: grid; place-items: center; background: var(--stage); padding: 20px; }
   #stage .frame { position: relative; aspect-ratio: 16 / 9; max-width: 100%; max-height: 100%;
@@ -1474,9 +1500,27 @@ function buildPanel() {
   };
   left.appendChild(sel);
 
-  for (const f of preset.fields) {
+  const numRow = (target, d) => {
+    const row = document.createElement("div"); row.className = "row";
+    const top = document.createElement("div"); top.className = "row-top";
+    const lab = document.createElement("label"); lab.textContent = d.label;
+    const num = document.createElement("input");
+    num.type = "number"; num.min = d.min; num.max = d.max; num.step = d.step;
+    num.value = shown(CFG[d.key], d.step); num.dataset.key = d.key; num.dataset.step = d.step;
+    top.append(lab, num);
+    const rng = document.createElement("input");
+    rng.type = "range"; rng.min = d.min; rng.max = d.max; rng.step = d.step;
+    rng.value = CFG[d.key]; rng.dataset.key = d.key;
+    rng.oninput = () => apply(d.key, parseFloat(rng.value));
+    rng.onchange = () => pushHistory();
+    num.onchange = () => { apply(d.key, clamp(parseFloat(num.value) || d.min, d.min, d.max)); pushHistory(); };
+    row.append(top, rng);
+    target.appendChild(row);
+  };
+
+  const renderField = (f, target) => {
     if (f.t === "seg") {
-      const cap = document.createElement("div"); cap.className = "cap"; cap.textContent = f.label; left.appendChild(cap);
+      const cap = document.createElement("div"); cap.className = "cap"; cap.textContent = f.label; target.appendChild(cap);
       const seg = document.createElement("div"); seg.className = "seg";
       for (const [val, txt] of f.opts) {
         const b = document.createElement("button"); b.textContent = txt;
@@ -1491,23 +1535,11 @@ function buildPanel() {
         };
         seg.appendChild(b);
       }
-      left.appendChild(seg);
+      target.appendChild(seg);
     } else if (f.t === "num") {
-      const row = document.createElement("div"); row.className = "row";
-      const lab = document.createElement("label"); lab.textContent = f.label;
-      const rng = document.createElement("input");
-      rng.type = "range"; rng.min = f.min; rng.max = f.max; rng.step = f.step;
-      rng.value = CFG[f.key]; rng.dataset.key = f.key;
-      const num = document.createElement("input");
-      num.type = "number"; num.min = f.min; num.max = f.max; num.step = f.step;
-      num.value = shown(CFG[f.key], f.step); num.dataset.key = f.key; num.dataset.step = f.step;
-      rng.oninput = () => apply(f.key, parseFloat(rng.value));
-      rng.onchange = () => pushHistory();
-      num.onchange = () => { apply(f.key, clamp(parseFloat(num.value) || f.min, f.min, f.max)); pushHistory(); };
-      row.append(lab, rng, num);
-      left.appendChild(row);
+      numRow(target, f);
     } else if (f.t === "curve") {
-      const cap = document.createElement("div"); cap.className = "cap"; cap.textContent = "Easing"; left.appendChild(cap);
+      const cap = document.createElement("div"); cap.className = "cap"; cap.textContent = "Easing"; target.appendChild(cap);
       const s = document.createElement("select"); s.className = "sel";
       CURVES.forEach((c, i) => {
         const o = document.createElement("option");
@@ -1515,31 +1547,39 @@ function buildPanel() {
         if (JSON.stringify(c.p) === JSON.stringify(CFG.curve)) o.selected = true;
         s.appendChild(o);
       });
-      left.appendChild(s);
-      const box = document.createElement("div"); box.className = "curve-box"; left.appendChild(box);
+      target.appendChild(s);
+      const box = document.createElement("div"); box.className = "curve-box"; target.appendChild(box);
       const redraw = curveGraph(box, () => CFG.curve, (next) => { CFG.curve = next; engine.patch(CFG); }, () => pushHistory());
       s.onchange = () => { CFG.curve = CURVES[+s.value].p.slice(); engine.patch(CFG); redraw(); pushHistory(); };
-
-      if (f.dur) {
-        const d = f.dur;
-        const row = document.createElement("div"); row.className = "row dur";
-        const lab = document.createElement("label"); lab.textContent = d.label;
-        const rng = document.createElement("input");
-        rng.type = "range"; rng.min = d.min; rng.max = d.max; rng.step = d.step;
-        rng.value = CFG[d.key]; rng.dataset.key = d.key;
-        const num = document.createElement("input");
-        num.type = "number"; num.min = d.min; num.max = d.max; num.step = d.step;
-        num.value = shown(CFG[d.key], d.step); num.dataset.key = d.key; num.dataset.step = d.step;
-        rng.oninput = () => apply(d.key, parseFloat(rng.value));
-        rng.onchange = () => pushHistory();
-        num.onchange = () => { apply(d.key, clamp(parseFloat(num.value) || d.min, d.min, d.max)); pushHistory(); };
-        row.append(lab, rng, num);
-        box.appendChild(row);
-      }
+      if (f.dur) numRow(box, f.dur);
     }
+  };
+
+  const SECTION = { seg: "Motion", num: "Adjust", curve: "Timing" };
+  const groups = [];
+  for (const f of preset.fields) {
+    const name = SECTION[f.t] || "More";
+    if (!groups.length || groups[groups.length - 1].name !== name) groups.push({ name, fields: [] });
+    groups[groups.length - 1].fields.push(f);
+  }
+  for (const g of groups) {
+    const sec = document.createElement("div");
+    sec.className = "sec" + (panelClosed.has(g.name) ? " closed" : "");
+    const head = document.createElement("div");
+    head.className = "sec-head";
+    head.innerHTML = `<span class="chev">▼</span><span class="nm">${g.name}</span><span class="eye">◉</span>`;
+    head.onclick = () => {
+      sec.classList.toggle("closed");
+      sec.classList.contains("closed") ? panelClosed.add(g.name) : panelClosed.delete(g.name);
+    };
+    const body = document.createElement("div"); body.className = "sec-body";
+    sec.append(head, body);
+    left.appendChild(sec);
+    for (const f of g.fields) renderField(f, body);
   }
   syncHistory();
 }
+const panelClosed = new Set();
 buildPanel();
 
 /* ---- images ---- */
