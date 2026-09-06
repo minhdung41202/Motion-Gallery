@@ -178,8 +178,8 @@
   <div class="col" id="right">
     <div class="kicker first">Ảnh</div>
     <button class="btn" id="add">＋ Thêm ảnh</button>
-    <div class="add-hint">Chọn thư mục ảnh, hoặc kéo-thả ảnh / thư mục vào đây</div>
-    <input type="file" id="file" accept="image/*" multiple webkitdirectory hidden />
+    <div class="add-hint">Chọn 1 hay nhiều ảnh (Cmd/Ctrl+A để lấy cả thư mục). Kéo-thả cả thư mục vào đây cũng được.</div>
+    <input type="file" id="file" accept="image/*" multiple hidden />
     <div class="meta"><span id="count">0 ảnh</span><button id="wipe">Xoá hết</button></div>
     <div id="list"></div>
   </div>
@@ -1740,13 +1740,15 @@ rightCol.addEventListener("dragover", (e) => { e.preventDefault(); rightCol.clas
 rightCol.addEventListener("dragleave", (e) => { if (e.target === rightCol) rightCol.classList.remove("drop"); });
 rightCol.addEventListener("drop", async (e) => {
   e.preventDefault(); rightCol.classList.remove("drop");
-  const bag = [];
-  for (const it of [...e.dataTransfer.items]) {
+  const flatFiles = [...(e.dataTransfer.files || [])];       // capture synchronously
+  const entries = [];
+  for (const it of e.dataTransfer.items || []) {
     const entry = it.webkitGetAsEntry && it.webkitGetAsEntry();
-    if (entry) await walkEntry(entry, bag);
-    else { const f = it.getAsFile && it.getAsFile(); if (f) bag.push(f); }
+    if (entry) entries.push(entry);
   }
-  importFiles(bag.length ? bag : e.dataTransfer.files);
+  const bag = [];
+  for (const entry of entries) await walkEntry(entry, bag);
+  importFiles(bag.length ? bag : flatFiles);
 });
 
 function sync() {
