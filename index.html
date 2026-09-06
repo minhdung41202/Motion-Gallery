@@ -103,13 +103,7 @@
   .btn { width: 100%; background: var(--panel-2); border: 1px solid var(--line);
     border-radius: 9px; padding: 10px; color: var(--txt); margin: 4px 0 10px; }
   .btn.go { background: var(--accent); color: var(--accent-ink); border: 0; font-weight: 650; }
-  .add-wrap { position: relative; }
-  #add-menu { position: absolute; left: 0; right: 0; top: calc(100% - 6px); z-index: 6; display: none;
-    background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 6px; }
-  #add-menu.open { display: block; }
-  #add-menu button { display: block; width: 100%; text-align: left; background: none; border: 0;
-    color: var(--txt); padding: 9px 10px; border-radius: 7px; font-size: 13px; cursor: pointer; }
-  #add-menu button:hover { background: var(--panel-2); }
+  .add-hint { color: var(--muted); font-size: 11px; line-height: 1.5; margin: -4px 2px 12px; }
   #right.drop { outline: 2px dashed var(--muted); outline-offset: -8px; }
   .meta { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 12px; margin: 8px 2px 12px; }
   .meta button { background: none; border: 0; color: var(--muted); font-size: 12px; cursor: pointer; }
@@ -183,15 +177,9 @@
   </div>
   <div class="col" id="right">
     <div class="kicker first">Ảnh</div>
-    <div class="add-wrap">
-      <button class="btn" id="add">＋ Thêm ảnh ▾</button>
-      <div id="add-menu">
-        <button id="add-files">Chọn ảnh lẻ</button>
-        <button id="add-dir">Chọn cả thư mục</button>
-      </div>
-    </div>
-    <input type="file" id="file" accept="image/*" multiple hidden />
-    <input type="file" id="fileDir" webkitdirectory hidden />
+    <button class="btn" id="add">＋ Thêm ảnh</button>
+    <div class="add-hint">Chọn thư mục ảnh, hoặc kéo-thả ảnh / thư mục vào đây</div>
+    <input type="file" id="file" accept="image/*" multiple webkitdirectory hidden />
     <div class="meta"><span id="count">0 ảnh</span><button id="wipe">Xoá hết</button></div>
     <div id="list"></div>
   </div>
@@ -1723,7 +1711,6 @@ buildPanel();
 /* ---- images ---- */
 const listEl = document.getElementById("list");
 const fileEl = document.getElementById("file");
-const fileDirEl = document.getElementById("fileDir");
 
 function importFiles(fileList) {
   const imgs = [...fileList]
@@ -1734,13 +1721,8 @@ function importFiles(fileList) {
   sync(); renderList();
 }
 
-const addMenu = document.getElementById("add-menu");
-document.getElementById("add").onclick = (e) => { e.stopPropagation(); addMenu.classList.toggle("open"); };
-document.addEventListener("click", (e) => { if (!e.target.closest(".add-wrap")) addMenu.classList.remove("open"); });
-document.getElementById("add-files").onclick = () => { addMenu.classList.remove("open"); fileEl.click(); };
-document.getElementById("add-dir").onclick = () => { addMenu.classList.remove("open"); fileDirEl.click(); };
+document.getElementById("add").onclick = () => fileEl.click();
 fileEl.onchange = (e) => { importFiles(e.target.files); fileEl.value = ""; };
-fileDirEl.onchange = (e) => { importFiles(e.target.files); fileDirEl.value = ""; };
 document.getElementById("wipe").onclick = () => { images = []; sync(); renderList(); };
 
 // drag a folder (or files) onto the right panel
