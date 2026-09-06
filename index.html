@@ -25,7 +25,8 @@
   button { font: inherit; color: inherit; cursor: pointer; }
 
   #app { display: flex; height: calc(100% - 60px); }
-  .col { width: 300px; padding: 16px; overflow-y: auto; flex-shrink: 0; }
+  .col { width: 300px; padding: 16px; overflow-y: auto; flex-shrink: 0; scrollbar-width: none; -ms-overflow-style: none; }
+  .col::-webkit-scrollbar { width: 0; height: 0; display: none; }
   #left { border-right: 1px solid var(--line); width: 360px; }
   #right { border-left: 1px solid var(--line); width: 320px; }
 
