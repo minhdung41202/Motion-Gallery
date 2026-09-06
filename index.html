@@ -91,9 +91,8 @@
   .row input[type=range]::-moz-range-progress { height: 2px; border-radius: 2px; background: #fff; }
   .row input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: #fff; }
 
-  #stage { flex: 1; min-width: 0; display: grid; place-items: center; background: var(--stage); padding: 20px; }
-  #stage .frame { position: relative; aspect-ratio: 16 / 9; max-width: 100%; max-height: 100%;
-    background: #000; border-radius: 4px; overflow: hidden; box-shadow: 0 0 0 1px var(--line); }
+  #stage { flex: 1; min-width: 0; background: var(--stage); position: relative; }
+  #stage .frame { position: absolute; inset: 0; background: #000; overflow: hidden; }
   #view { display: block; width: 100%; height: 100%; }
   #rec { position: absolute; left: 12px; top: 12px; display: none; align-items: center; gap: 7px;
     font-size: 11px; letter-spacing: .1em; color: #ff7a7a; }
@@ -403,15 +402,15 @@ class Engine {
     this._q = new THREE.Quaternion();
     this._setCurve();
 
+    this.canvas = canvas;
     this.gl = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true });
-    this.gl.setPixelRatio(1);
-    this.gl.setSize(1920, 1080, false);
     this.gl.setClearColor(0x000000, 1);
 
     this.stage = new THREE.Scene();
     this.cam = new THREE.PerspectiveCamera(50, 16 / 9, 1, 5e5);
     this.cam.position.set(0, 0, this.cfg.dist);
     this.cam.lookAt(0, 0, 0);
+    this.resize();
 
     this.pivot = new THREE.Group();
     this.spinner = new THREE.Group();
@@ -855,8 +854,19 @@ class Engine {
     );
   }
 
+  resize() {
+    const w = Math.max(1, this.canvas.clientWidth || 1920);
+    const h = Math.max(1, this.canvas.clientHeight || 1080);
+    this.gl.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    this.gl.setSize(w, h, false);
+    this.cam.aspect = w / h;
+    this.lens();
+  }
+
   lens() {
     const zoom = Math.max(0.05, this.cfg.lens / 100);
+    // vertical FOV from a fixed 1080-unit reference, so "lens" behaves like a focal
+    // length independent of the actual pixel size the canvas is displayed at
     this.cam.fov = THREE.MathUtils.radToDeg(2 * Math.atan(540 / (1000 / zoom)));
     this.cam.position.set(0, 0, this.cfg.dist);
     this.cam.lookAt(0, 0, 0);
@@ -1404,6 +1414,7 @@ const live = () => images.filter(x => x.on).map(x => x.url);
 let preset = PRESETS[0];
 let CFG = { ...preset.cfg };
 const engine = new Engine(document.getElementById("view"), CFG, live());
+new ResizeObserver(() => engine.resize()).observe(document.getElementById("stage"));
 
 /* ---- edit history: Reset restores the preset's defaults, Back/Next step through edits ---- */
 const snapshot = () => ({ id: preset.id, cfg: { ...CFG, curve: CFG.curve.slice() } });
