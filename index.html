@@ -103,6 +103,9 @@
   .btn { width: 100%; background: var(--panel-2); border: 1px solid var(--line);
     border-radius: 9px; padding: 10px; color: var(--txt); margin: 4px 0 10px; }
   .btn.go { background: var(--accent); color: var(--accent-ink); border: 0; font-weight: 650; }
+  .add-row { display: flex; gap: 8px; }
+  .add-row .btn { margin: 4px 0 10px; font-size: 12px; padding: 10px 8px; }
+  #right.drop { outline: 2px dashed var(--muted); outline-offset: -8px; }
   .meta { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 12px; margin: 8px 2px 12px; }
   .meta button { background: none; border: 0; color: var(--muted); font-size: 12px; cursor: pointer; }
   .meta button:hover { color: var(--txt); }
@@ -175,8 +178,12 @@
   </div>
   <div class="col" id="right">
     <div class="kicker first">Ảnh</div>
-    <button class="btn" id="add">＋ Thêm ảnh</button>
+    <div class="add-row">
+      <button class="btn" id="add">＋ Thêm ảnh</button>
+      <button class="btn" id="addDir" title="Thêm cả một thư mục ảnh">＋ Thư mục</button>
+    </div>
     <input type="file" id="file" accept="image/*" multiple hidden />
+    <input type="file" id="fileDir" webkitdirectory hidden />
     <div class="meta"><span id="count">0 ảnh</span><button id="wipe">Xoá hết</button></div>
     <div id="list"></div>
   </div>
@@ -1724,13 +1731,46 @@ buildPanel();
 /* ---- images ---- */
 const listEl = document.getElementById("list");
 const fileEl = document.getElementById("file");
-document.getElementById("add").onclick = () => fileEl.click();
-fileEl.onchange = (e) => {
-  for (const f of e.target.files) images.push({ name: f.name.replace(/\.[^.]+$/, ""), url: URL.createObjectURL(f), on: true });
-  fileEl.value = "";
+const fileDirEl = document.getElementById("fileDir");
+
+function importFiles(fileList) {
+  const imgs = [...fileList]
+    .filter(f => f.type.startsWith("image/"))
+    .sort((a, b) => (a.webkitRelativePath || a.name).localeCompare(b.webkitRelativePath || b.name, undefined, { numeric: true }));
+  if (!imgs.length) return;
+  for (const f of imgs) images.push({ name: f.name.replace(/\.[^.]+$/, ""), url: URL.createObjectURL(f), on: true });
   sync(); renderList();
-};
+}
+
+document.getElementById("add").onclick = () => fileEl.click();
+document.getElementById("addDir").onclick = () => fileDirEl.click();
+fileEl.onchange = (e) => { importFiles(e.target.files); fileEl.value = ""; };
+fileDirEl.onchange = (e) => { importFiles(e.target.files); fileDirEl.value = ""; };
 document.getElementById("wipe").onclick = () => { images = []; sync(); renderList(); };
+
+// drag a folder (or files) onto the right panel
+const rightCol = document.getElementById("right");
+const readAll = (reader) => new Promise((res) => {
+  const out = [];
+  const step = () => reader.readEntries((b) => { if (!b.length) return res(out); out.push(...b); step(); }, () => res(out));
+  step();
+});
+async function walkEntry(entry, bag) {
+  if (entry.isFile) await new Promise((r) => entry.file((f) => { bag.push(f); r(); }, r));
+  else if (entry.isDirectory) for (const e of await readAll(entry.createReader())) await walkEntry(e, bag);
+}
+rightCol.addEventListener("dragover", (e) => { e.preventDefault(); rightCol.classList.add("drop"); });
+rightCol.addEventListener("dragleave", (e) => { if (e.target === rightCol) rightCol.classList.remove("drop"); });
+rightCol.addEventListener("drop", async (e) => {
+  e.preventDefault(); rightCol.classList.remove("drop");
+  const bag = [];
+  for (const it of [...e.dataTransfer.items]) {
+    const entry = it.webkitGetAsEntry && it.webkitGetAsEntry();
+    if (entry) await walkEntry(entry, bag);
+    else { const f = it.getAsFile && it.getAsFile(); if (f) bag.push(f); }
+  }
+  importFiles(bag.length ? bag : e.dataTransfer.files);
+});
 
 function sync() {
   const urls = live();
