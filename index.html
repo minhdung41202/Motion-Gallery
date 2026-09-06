@@ -103,8 +103,13 @@
   .btn { width: 100%; background: var(--panel-2); border: 1px solid var(--line);
     border-radius: 9px; padding: 10px; color: var(--txt); margin: 4px 0 10px; }
   .btn.go { background: var(--accent); color: var(--accent-ink); border: 0; font-weight: 650; }
-  .add-row { display: flex; gap: 8px; }
-  .add-row .btn { margin: 4px 0 10px; font-size: 12px; padding: 10px 8px; }
+  .add-wrap { position: relative; }
+  #add-menu { position: absolute; left: 0; right: 0; top: calc(100% - 6px); z-index: 6; display: none;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 6px; }
+  #add-menu.open { display: block; }
+  #add-menu button { display: block; width: 100%; text-align: left; background: none; border: 0;
+    color: var(--txt); padding: 9px 10px; border-radius: 7px; font-size: 13px; cursor: pointer; }
+  #add-menu button:hover { background: var(--panel-2); }
   #right.drop { outline: 2px dashed var(--muted); outline-offset: -8px; }
   .meta { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 12px; margin: 8px 2px 12px; }
   .meta button { background: none; border: 0; color: var(--muted); font-size: 12px; cursor: pointer; }
@@ -178,9 +183,12 @@
   </div>
   <div class="col" id="right">
     <div class="kicker first">Ảnh</div>
-    <div class="add-row">
-      <button class="btn" id="add">＋ Thêm ảnh</button>
-      <button class="btn" id="addDir" title="Thêm cả một thư mục ảnh">＋ Thư mục</button>
+    <div class="add-wrap">
+      <button class="btn" id="add">＋ Thêm ảnh ▾</button>
+      <div id="add-menu">
+        <button id="add-files">Chọn ảnh lẻ</button>
+        <button id="add-dir">Chọn cả thư mục</button>
+      </div>
     </div>
     <input type="file" id="file" accept="image/*" multiple hidden />
     <input type="file" id="fileDir" webkitdirectory hidden />
@@ -342,6 +350,7 @@ function tileMaterial() {
       uTex:     { value: null },
       uTexBack: { value: null },
       uUseBack: { value: 0 },
+      uHasTex:  { value: 0 },
       uCorner:  { value: 0 },
       uRatio:   { value: 1 },
       uFade:    { value: 0 },
@@ -355,7 +364,7 @@ function tileMaterial() {
     fragmentShader: `
       precision highp float;
       uniform sampler2D uTex, uTexBack;
-      uniform float uUseBack, uCorner, uRatio, uFade, uMirror;
+      uniform float uUseBack, uHasTex, uCorner, uRatio, uFade, uMirror;
       uniform vec3 uBack;
       varying vec2 vUv;
 
@@ -375,6 +384,10 @@ function tileMaterial() {
         // gl_FrontFacing tells us which side of the tile the camera is looking at.
         // Cards flip on a horizontal hinge (rotate about X), so the back face reads
         // top-for-bottom — correct that with a vertical flip, independent of uMirror.
+        if (uHasTex < 0.5) {                      // no image yet — render a blank white tile
+          gl_FragColor = vec4(mix(vec3(1.0), uBack, uFade), 1.0);
+          return;
+        }
         bool onBack = uUseBack > 0.5 && !gl_FrontFacing;
         vec2 uv = vec2(uMirror > 0.5 ? 1.0 - vUv.x : vUv.x, onBack ? 1.0 - vUv.y : vUv.y);
         vec4 texel = onBack ? texture2D(uTexBack, uv) : texture2D(uTex, uv);
@@ -383,26 +396,6 @@ function tileMaterial() {
       }
     `,
   });
-}
-
-/* ------------------------------------------------------------------ *
- *  Procedural placeholder art — a numbered gradient card, drawn on a
- *  canvas so it is same-origin and never taints an export.
- * ------------------------------------------------------------------ */
-function placeholder(n) {
-  const cv = document.createElement("canvas");
-  cv.width = 480; cv.height = 600;
-  const g = cv.getContext("2d");
-  const base = 22 + (n * 37) % 46;              // spread of grays, 22%..68%
-  const grad = g.createLinearGradient(0, 0, 480, 600);
-  grad.addColorStop(0, `hsl(240, 4%, ${base}%)`);
-  grad.addColorStop(1, `hsl(240, 4%, ${Math.max(8, base - 20)}%)`);
-  g.fillStyle = grad; g.fillRect(0, 0, 480, 600);
-  g.fillStyle = "rgba(255,255,255,0.85)";
-  g.font = "600 168px ui-sans-serif, system-ui, sans-serif";
-  g.textAlign = "center"; g.textBaseline = "middle";
-  g.fillText(String(n), 240, 300);
-  return cv.toDataURL("image/png");
 }
 
 /* ------------------------------------------------------------------ *
@@ -495,6 +488,7 @@ class Engine {
       const tx = this.tex.get(this._src(i)) || null;
       const u = this.tiles[i].material.uniforms;
       if (u.uTex.value !== tx) { u.uTex.value = tx; this.tiles[i].material.needsUpdate = true; }
+      u.uHasTex.value = tx ? 1 : 0;
       u.uUseBack.value = twoSided ? 1 : 0;
       if (twoSided) {
         const bx = this.tex.get(this._srcBack(i)) || tx;
@@ -1416,9 +1410,7 @@ const PRESETS = [
  *  App
  * ------------------------------------------------------------------ */
 const SPAN = 10;
-let images = Array.from({ length: 12 }, (_, i) => ({
-  name: `Tile ${String(i + 1).padStart(2, "0")}`, url: placeholder(i + 1), on: true,
-}));
+let images = [];                                  // no images until the user adds some — tiles render blank white
 const live = () => images.filter(x => x.on).map(x => x.url);
 
 let preset = PRESETS[0];
@@ -1742,8 +1734,11 @@ function importFiles(fileList) {
   sync(); renderList();
 }
 
-document.getElementById("add").onclick = () => fileEl.click();
-document.getElementById("addDir").onclick = () => fileDirEl.click();
+const addMenu = document.getElementById("add-menu");
+document.getElementById("add").onclick = (e) => { e.stopPropagation(); addMenu.classList.toggle("open"); };
+document.addEventListener("click", (e) => { if (!e.target.closest(".add-wrap")) addMenu.classList.remove("open"); });
+document.getElementById("add-files").onclick = () => { addMenu.classList.remove("open"); fileEl.click(); };
+document.getElementById("add-dir").onclick = () => { addMenu.classList.remove("open"); fileDirEl.click(); };
 fileEl.onchange = (e) => { importFiles(e.target.files); fileEl.value = ""; };
 fileDirEl.onchange = (e) => { importFiles(e.target.files); fileDirEl.value = ""; };
 document.getElementById("wipe").onclick = () => { images = []; sync(); renderList(); };
@@ -1773,8 +1768,7 @@ rightCol.addEventListener("drop", async (e) => {
 });
 
 function sync() {
-  const urls = live();
-  engine.sources_(urls.length ? urls : [placeholder(1)]);
+  engine.sources_(live());
 }
 const EYE = `<svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z"/><circle cx="10" cy="10" r="2.6"/></svg>`;
 const EYE_OFF = `<svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z"/><circle cx="10" cy="10" r="2.6"/><path d="M3 3l14 14"/></svg>`;
