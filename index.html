@@ -1503,7 +1503,7 @@ function buildPanel() {
     CFG = { ...preset.cfg };
     engine.preset(CFG);
     setHead(0);
-    ALL_SECTIONS.forEach(s => panelClosed.add(s));   // switching motion → tidy up (collapse all)
+    collapseRest();   // switching motion → tidy up (collapse all but the pinned section)
     buildPanel();
     pushHistory();
   };
@@ -1595,7 +1595,10 @@ function buildPanel() {
   syncHistory();
 }
 const ALL_SECTIONS = ["Motion", "Layout", "Camera", "Style", "Timing"];
-const panelClosed = new Set(ALL_SECTIONS);   // start every session tidy — all sections collapsed
+const PINNED_OPEN = "Timing";                 // this section stays open on load / motion switch
+const collapseRest = () => ALL_SECTIONS.forEach(s => s === PINNED_OPEN ? panelClosed.delete(s) : panelClosed.add(s));
+const panelClosed = new Set();
+collapseRest();
 
 /* ---- friendlier param grouping + hints (Vietnamese) ---- */
 const SECTION_LABEL = {
