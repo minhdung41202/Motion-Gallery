@@ -103,8 +103,6 @@
   .btn { width: 100%; background: var(--panel-2); border: 1px solid var(--line);
     border-radius: 9px; padding: 10px; color: var(--txt); margin: 4px 0 10px; }
   .btn.go { background: var(--accent); color: var(--accent-ink); border: 0; font-weight: 650; }
-  .add-row { display: flex; gap: 8px; }
-  .add-row .btn { flex: 1; }
   .add-hint { color: var(--muted); font-size: 11px; line-height: 1.5; margin: -4px 2px 12px; }
   #right.drop { outline: 2px dashed var(--muted); outline-offset: -8px; }
   .meta { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 12px; margin: 8px 2px 12px; }
@@ -179,13 +177,9 @@
   </div>
   <div class="col" id="right">
     <div class="kicker first">Ảnh</div>
-    <div class="add-row">
-      <button class="btn" id="add">＋ Ảnh</button>
-      <button class="btn" id="addDir">＋ Thư mục</button>
-    </div>
-    <div class="add-hint">Hoặc kéo-thả ảnh / thư mục vào vùng này.</div>
+    <button class="btn" id="add">＋ Thêm ảnh</button>
+    <div class="add-hint">Chọn 1 hay nhiều ảnh (Cmd/Ctrl+A để lấy cả thư mục). Kéo-thả cả thư mục vào đây cũng được.</div>
     <input type="file" id="file" accept="image/*" multiple hidden />
-    <input type="file" id="fileDir" webkitdirectory hidden />
     <div class="meta"><span id="count">0 ảnh</span><button id="wipe">Xoá hết</button></div>
     <div id="list"></div>
   </div>
@@ -1727,11 +1721,8 @@ function importFiles(fileList) {
   sync(); renderList();
 }
 
-const fileDirEl = document.getElementById("fileDir");
 document.getElementById("add").onclick = () => fileEl.click();
-document.getElementById("addDir").onclick = () => fileDirEl.click();
 fileEl.onchange = (e) => { importFiles(e.target.files); fileEl.value = ""; };
-fileDirEl.onchange = (e) => { importFiles(e.target.files); fileDirEl.value = ""; };
 document.getElementById("wipe").onclick = () => { images = []; sync(); renderList(); };
 
 // drag a folder (or files) onto the right panel
