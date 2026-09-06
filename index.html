@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Motion Gallery</title>
+<title>MOGA</title>
 <!--
-  Motion Gallery — a browser tool for photo-carousel / photo-sphere motion graphics.
+  MOGA — a browser tool for photo-carousel / photo-sphere motion graphics.
   Original work. Only third-party runtime dependency: three.js (r0.160, MIT License).
   Timing curves, tile shader, layout math and default tuning are all implemented here
   from standard public techniques (cubic-bezier evaluation, Fibonacci-sphere point
@@ -29,9 +29,8 @@
   #left { border-right: 1px solid var(--line); width: 360px; }
   #right { border-left: 1px solid var(--line); width: 320px; }
 
-  .brand { display: flex; align-items: center; font-weight: 650; font-size: 14px; margin-bottom: 14px; }
-  .brand b { background: var(--accent); color: var(--accent-ink); border-radius: 6px;
-    padding: 2px 6px; margin-right: 9px; font-size: 12px; letter-spacing: .04em; }
+  .brand { display: flex; align-items: center; margin-bottom: 16px; }
+  .brand svg { height: 19px; width: auto; display: block; }
 
   .toolbar { display: flex; gap: 6px; margin-bottom: 16px; }
   .toolbar button { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
@@ -41,7 +40,7 @@
 
   .kicker { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 18px 0 9px; }
   .kicker.first { margin-top: 0; }
-  .cap { font-size: 11px; color: var(--muted); margin: 14px 0 5px; }
+  .cap { font-size: 12px; color: var(--muted); margin: 14px 0 5px; }
 
   select.sel { width: 100%; background: var(--panel-2); color: var(--txt);
     border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; margin-top: 8px; }
@@ -51,8 +50,8 @@
   .sec:first-of-type { border-top: 0; }
   .sec-head { display: flex; align-items: center; gap: 8px; padding: 11px 2px; cursor: pointer; user-select: none; }
   .sec-head .chev { color: var(--muted); font-size: 9px; width: 8px; text-align: center; transition: transform .15s; }
-  .sec-head .nm { flex: 1; font-size: 12px; color: var(--txt); }
-  .sec-head .eye { color: var(--muted); opacity: .4; font-size: 12px; pointer-events: none; }
+  .sec-head .nm { flex: 1; font-size: 14px; color: var(--txt); }
+  .sec-head .eye { color: var(--muted); opacity: .4; font-size: 13px; pointer-events: none; }
   .sec.closed .chev { transform: rotate(-90deg); }
   .sec.closed .sec-body { display: none; }
   .sec-body { padding: 2px 0 14px; }
@@ -67,29 +66,29 @@
   .curve-handle:active { cursor: grabbing; }
 
   .seg { display: flex; gap: 3px; background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 3px; }
-  .seg button { flex: 1; border: 0; background: transparent; color: var(--muted); padding: 6px 3px; border-radius: 6px; font-size: 12px; }
+  .seg button { flex: 1; border: 0; background: transparent; color: var(--muted); padding: 7px 3px; border-radius: 6px; font-size: 13px; }
   .seg button.on { background: var(--active); color: var(--on); }
 
   /* Lightroom-style slider: label + value on top, thin track + round thumb below */
-  .row { margin-top: 13px; }
-  .row .row-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
-  .row label { color: var(--txt); font-size: 12px; }
-  .row input[type=number] { width: 66px; background: transparent; border: 1px solid transparent;
+  .row { margin-top: 15px; }
+  .row .row-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 5px; }
+  .row label { color: var(--txt); font-size: 14px; }
+  .row input[type=number] { width: 72px; background: transparent; border: 1px solid transparent;
     border-radius: 5px; padding: 1px 4px; color: var(--muted); text-align: right; font: inherit;
-    font-variant-numeric: tabular-nums; outline: none; }
+    font-size: 14px; font-variant-numeric: tabular-nums; outline: none; }
   .row input[type=number]:hover { color: var(--txt); }
   .row input[type=number]:focus { color: var(--txt); border-color: var(--line); background: var(--panel-2); }
 
-  .row input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 13px;
+  .row input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 15px;
     margin: 0; background: transparent; cursor: pointer; display: block; }
-  .row input[type=range]::-webkit-slider-runnable-track { height: 2px; border-radius: 2px; background: #4a4a53; }
+  .row input[type=range]::-webkit-slider-runnable-track { height: 2px; border-radius: 2px;
+    background: linear-gradient(to right, #fff var(--fill, 0%), #4a4a53 var(--fill, 0%)); }
   .row input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none;
-    width: 13px; height: 13px; margin-top: -5.5px; border-radius: 50%; background: #cccdd3;
+    width: 14px; height: 14px; margin-top: -6px; border-radius: 50%; background: #fff;
     box-shadow: 0 1px 3px rgba(0,0,0,.55); }
-  .row input[type=range]:hover::-webkit-slider-thumb { background: #fff; }
-  .row input[type=range]:active::-webkit-slider-thumb { background: #fff; }
   .row input[type=range]::-moz-range-track { height: 2px; border-radius: 2px; background: #4a4a53; }
-  .row input[type=range]::-moz-range-thumb { width: 13px; height: 13px; border: 0; border-radius: 50%; background: #cccdd3; }
+  .row input[type=range]::-moz-range-progress { height: 2px; border-radius: 2px; background: #fff; }
+  .row input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: #fff; }
 
   #stage { flex: 1; min-width: 0; display: grid; place-items: center; background: var(--stage); padding: 20px; }
   #stage .frame { position: relative; aspect-ratio: 16 / 9; max-width: 100%; max-height: 100%;
@@ -134,9 +133,8 @@
   #gate { position: fixed; inset: 0; z-index: 999; background: var(--bg);
     display: flex; align-items: center; justify-content: center; }
   #gate .card { width: 260px; text-align: center; }
-  #gate .brand { font-weight: 650; font-size: 15px; margin-bottom: 18px; }
-  #gate .brand b { background: var(--accent); color: var(--accent-ink); border-radius: 6px;
-    padding: 2px 6px; margin-right: 9px; font-size: 12px; }
+  #gate .brand { display: flex; justify-content: center; margin-bottom: 22px; }
+  #gate .brand svg { height: 24px; width: auto; }
   #gate input { width: 100%; background: var(--panel-2); border: 1px solid var(--line);
     border-radius: 9px; padding: 10px 12px; color: var(--txt); font: inherit; outline: none; text-align: center; }
   #gate button { width: 100%; margin-top: 8px; }
@@ -146,7 +144,7 @@
 <body>
 <div id="gate">
   <div class="card">
-    <div class="brand"><b>MG</b> Motion Gallery</div>
+    <div class="brand"><svg viewBox="0 0 132 32" xmlns="http://www.w3.org/2000/svg"><path d="M0 31.2323V4.43422H4.4178V0.0164185H9.27253V4.43422H13.7389V13.2213H17.6227V4.43422H22.089V0.0164185H26.9923V4.43422H31.3615V31.2323H26.5068V4.91969H22.5745V13.6582H18.1081V26.8631H13.2534V13.6582H8.78706V4.91969H4.90327V31.2323H0Z" fill="#fff"/><path d="M39.4528 4.4178H43.822V0H66.2508V4.4178H70.6686V26.7819H66.2508V31.2483H43.822V26.7819H39.4528V4.4178ZM44.3075 4.90327V26.2964H65.7654V4.90327H44.3075Z" fill="#fff"/><rect x="50.4406" y="16.1824" width="9.10261" height="4.04561" fill="#fff"/><rect x="48.4178" y="8.09122" width="4.04561" height="4.04561" fill="#fff"/><rect x="58.5318" y="8.0912" width="4.04561" height="4.04561" fill="#fff"/><path d="M83.1777 31.2321V26.8628H78.7599V4.43398H83.1777V0.0161743H96.868V4.43398H101.334V13.658H96.3825V4.91945H83.6631V26.3773H96.3825V22.445H92.0133V18.0272H87.5469V13.221H92.4987V17.5417H101.334V26.8628H96.868V31.2321H83.1777Z" fill="#fff"/><path d="M109.426 31.2321V8.80323H113.843V4.43398H118.213V0.0161743H123.164V4.43398H127.534V8.80323H132V31.2321H127.048V22.445H114.329V31.2321H109.426ZM114.329 17.5417H127.048V9.2887H122.679V4.91945H118.698V9.2887H114.329V17.5417Z" fill="#fff"/></svg></div>
     <input id="gate-pw" type="password" placeholder="Password" autocomplete="off" />
     <button class="btn go" id="gate-go">Unlock</button>
     <div class="err" id="gate-err"></div>
@@ -208,6 +206,8 @@
 
 <script type="module">
 import * as THREE from "three";  // three.js r0.160 — MIT License, © three.js authors
+
+const MOGA_SVG = `<svg viewBox="0 0 132 32" xmlns="http://www.w3.org/2000/svg"><path d="M0 31.2323V4.43422H4.4178V0.0164185H9.27253V4.43422H13.7389V13.2213H17.6227V4.43422H22.089V0.0164185H26.9923V4.43422H31.3615V31.2323H26.5068V4.91969H22.5745V13.6582H18.1081V26.8631H13.2534V13.6582H8.78706V4.91969H4.90327V31.2323H0Z" fill="#fff"/><path d="M39.4528 4.4178H43.822V0H66.2508V4.4178H70.6686V26.7819H66.2508V31.2483H43.822V26.7819H39.4528V4.4178ZM44.3075 4.90327V26.2964H65.7654V4.90327H44.3075Z" fill="#fff"/><rect x="50.4406" y="16.1824" width="9.10261" height="4.04561" fill="#fff"/><rect x="48.4178" y="8.09122" width="4.04561" height="4.04561" fill="#fff"/><rect x="58.5318" y="8.0912" width="4.04561" height="4.04561" fill="#fff"/><path d="M83.1777 31.2321V26.8628H78.7599V4.43398H83.1777V0.0161743H96.868V4.43398H101.334V13.658H96.3825V4.91945H83.6631V26.3773H96.3825V22.445H92.0133V18.0272H87.5469V13.221H92.4987V17.5417H101.334V26.8628H96.868V31.2321H83.1777Z" fill="#fff"/><path d="M109.426 31.2321V8.80323H113.843V4.43398H118.213V0.0161743H123.164V4.43398H127.534V8.80323H132V31.2321H127.048V22.445H114.329V31.2321H109.426ZM114.329 17.5417H127.048V9.2887H122.679V4.91945H118.698V9.2887H114.329V17.5417Z" fill="#fff"/></svg>`;
 
 const TAU = Math.PI * 2;
 const clamp = (v, lo, hi) => v < lo ? lo : v > hi ? hi : v;
@@ -1464,15 +1464,22 @@ function loop() {
 /* ---- left panel ---- */
 const left = document.getElementById("left");
 const shown = (v, step) => step < 1 ? Number(v).toFixed(2) : String(Math.round(v));
+const fillTrack = (rng) => {
+  const p = (rng.value - rng.min) / (rng.max - rng.min || 1) * 100;
+  rng.style.setProperty("--fill", p + "%");
+};
 
 function apply(key, val) {
   CFG[key] = val;
   engine.patch(CFG);
-  for (const inp of left.querySelectorAll(`[data-key="${key}"]`)) inp.value = inp.type === "number" ? shown(val, inp.dataset.step) : val;
+  for (const inp of left.querySelectorAll(`[data-key="${key}"]`)) {
+    if (inp.type === "number") inp.value = shown(val, inp.dataset.step);
+    else { inp.value = val; fillTrack(inp); }
+  }
 }
 
 function buildPanel() {
-  left.innerHTML = `<div class="brand"><b>MG</b> Motion Gallery</div>
+  left.innerHTML = `<div class="brand">${MOGA_SVG}</div>
     <div class="toolbar">
       <button id="tb-reset" class="grow" title="Reset this motion to its defaults">↺ Reset</button>
       <button id="tb-back" title="Undo last change">◀</button>
@@ -1510,8 +1517,8 @@ function buildPanel() {
     top.append(lab, num);
     const rng = document.createElement("input");
     rng.type = "range"; rng.min = d.min; rng.max = d.max; rng.step = d.step;
-    rng.value = CFG[d.key]; rng.dataset.key = d.key;
-    rng.oninput = () => apply(d.key, parseFloat(rng.value));
+    rng.value = CFG[d.key]; rng.dataset.key = d.key; fillTrack(rng);
+    rng.oninput = () => { apply(d.key, parseFloat(rng.value)); fillTrack(rng); };
     rng.onchange = () => pushHistory();
     num.onchange = () => { apply(d.key, clamp(parseFloat(num.value) || d.min, d.min, d.max)); pushHistory(); };
     row.append(top, rng);
