@@ -1503,6 +1503,7 @@ function buildPanel() {
     CFG = { ...preset.cfg };
     engine.preset(CFG);
     setHead(0);
+    ALL_SECTIONS.forEach(s => panelClosed.add(s));   // switching motion → tidy up (collapse all)
     buildPanel();
     pushHistory();
   };
@@ -1585,7 +1586,6 @@ function buildPanel() {
     head.onclick = () => {
       sec.classList.toggle("closed");
       sec.classList.contains("closed") ? panelClosed.add(name) : panelClosed.delete(name);
-      try { localStorage.setItem("moga-panel", JSON.stringify([...panelClosed])); } catch {}
     };
     const body = document.createElement("div"); body.className = "sec-body";
     sec.append(head, body);
@@ -1594,7 +1594,8 @@ function buildPanel() {
   }
   syncHistory();
 }
-const panelClosed = (() => { try { return new Set(JSON.parse(localStorage.getItem("moga-panel") || "[]")); } catch { return new Set(); } })();
+const ALL_SECTIONS = ["Motion", "Layout", "Camera", "Style", "Timing"];
+const panelClosed = new Set(ALL_SECTIONS);   // start every session tidy — all sections collapsed
 
 /* ---- friendlier param grouping + hints (Vietnamese) ---- */
 const SECTION_LABEL = {
