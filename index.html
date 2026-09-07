@@ -67,9 +67,7 @@
     overflow: hidden; cursor: pointer; padding: 0; color: var(--txt); text-align: left; }
   .gal-card:hover { border-color: var(--muted); }
   .gal-card.on { border-color: var(--txt); }
-  .gal-card img { display: block; width: 100%; aspect-ratio: 1 / 1; object-fit: cover; background: #000; }
-  .gal-card > canvas { position: absolute; top: 0; left: 0; width: 100%; aspect-ratio: 1 / 1;
-    display: block; background: #000; pointer-events: none; }
+  .gal-card > canvas { display: block; width: 100%; aspect-ratio: 16 / 9; background: #000; }
   .gal-card .cap { padding: 8px 10px; font-size: 12px; line-height: 1.3; }
   .gal-card .cap small { display: block; color: var(--muted); font-size: 10px; margin-top: 2px; }
   @media (max-width: 1280px) { .gal-grid { grid-template-columns: repeat(6, 1fr); } }
@@ -219,6 +217,8 @@ import * as THREE from "three";  // three.js r0.160 — MIT License, © three.js
 const MOGA_SVG = `<svg viewBox="0 0 132 32" xmlns="http://www.w3.org/2000/svg"><path d="M0 31.2323V4.43422H4.4178V0.0164185H9.27253V4.43422H13.7389V13.2213H17.6227V4.43422H22.089V0.0164185H26.9923V4.43422H31.3615V31.2323H26.5068V4.91969H22.5745V13.6582H18.1081V26.8631H13.2534V13.6582H8.78706V4.91969H4.90327V31.2323H0Z" fill="#fff"/><path d="M39.4528 4.4178H43.822V0H66.2508V4.4178H70.6686V26.7819H66.2508V31.2483H43.822V26.7819H39.4528V4.4178ZM44.3075 4.90327V26.2964H65.7654V4.90327H44.3075Z" fill="#fff"/><rect x="50.4406" y="16.1824" width="9.10261" height="4.04561" fill="#fff"/><rect x="48.4178" y="8.09122" width="4.04561" height="4.04561" fill="#fff"/><rect x="58.5318" y="8.0912" width="4.04561" height="4.04561" fill="#fff"/><path d="M83.1777 31.2321V26.8628H78.7599V4.43398H83.1777V0.0161743H96.868V4.43398H101.334V13.658H96.3825V4.91945H83.6631V26.3773H96.3825V22.445H92.0133V18.0272H87.5469V13.221H92.4987V17.5417H101.334V26.8628H96.868V31.2321H83.1777Z" fill="#fff"/><path d="M109.426 31.2321V8.80323H113.843V4.43398H118.213V0.0161743H123.164V4.43398H127.534V8.80323H132V31.2321H127.048V22.445H114.329V31.2321H109.426ZM114.329 17.5417H127.048V9.2887H122.679V4.91945H118.698V9.2887H114.329V17.5417Z" fill="#fff"/></svg>`;
 
 const GRID_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="10" y1="4" x2="10" y2="20"/></svg>`;
+
+const GAL_W = 320, GAL_H = 180;   // 16:9 render size for each animated gallery-card preview (matches editor framing)
 
 const TAU = Math.PI * 2;
 const clamp = (v, lo, hi) => v < lo ? lo : v > hi ? hi : v;
@@ -384,7 +384,7 @@ function tileMaterial() {
  *  stage -> pivot (fixed tilt) -> spinner (animated) -> tiles[]
  * ------------------------------------------------------------------ */
 class Engine {
-  constructor(canvas, cfg, sources) {
+  constructor(canvas, cfg, sources, sharedGL) {
     this.cfg = { ...cfg };
     this.sources = sources.slice();
     this.tiles = [];
@@ -397,8 +397,9 @@ class Engine {
     this._setCurve();
 
     this.canvas = canvas;
-    this.gl = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true });
-    this.gl.setClearColor(0x000000, 1);
+    this.shared = !!sharedGL;   // gallery cards share one renderer, blitting to per-card 2D canvases
+    this.gl = sharedGL || new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true });
+    if (!this.shared) this.gl.setClearColor(0x000000, 1);
 
     this.stage = new THREE.Scene();
     this.cam = new THREE.PerspectiveCamera(50, 16 / 9, 1, 5e5);
@@ -849,6 +850,7 @@ class Engine {
   }
 
   resize() {
+    if (this.shared) { this.cam.aspect = GAL_W / GAL_H; this.lens(); return; }
     const w = Math.max(1, this.canvas.clientWidth || 1920);
     const h = Math.max(1, this.canvas.clientHeight || 1080);
     this.gl.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
@@ -1700,65 +1702,64 @@ const gallery = document.getElementById("gallery");
 const galGrid = document.getElementById("gal-grid");
 let galBuilt = false;
 
+/* every card plays its motion continuously: one shared renderer, N scenes, blit to per-card 2D canvases */
+let galShared = null, galCells = [], galRAF = 0, galT0 = 0, galLast = 0;
+const galIO = new IntersectionObserver(
+  (ents) => ents.forEach((e) => { const c = galCells[+e.target.dataset.i]; if (c) c.vis = e.isIntersecting; }),
+  { root: gallery, rootMargin: "200px" },
+);
+
 function buildGallery() {
-  const keepId = preset.id, keepCfg = { ...CFG, curve: CFG.curve.slice() }, keepHead = head;
   galGrid.innerHTML = "";
-  for (const p of PRESETS) {
-    engine.preset({ ...p.cfg, curve: p.cfg.curve.slice() });
-    engine.tick(2.6);
-    engine.paint();
-    const src = engine.gl.domElement.toDataURL("image/jpeg", 0.72);
+  galShared = new THREE.WebGLRenderer({ alpha: true, antialias: true, preserveDrawingBuffer: true });
+  galShared.setClearColor(0x000000, 1);
+  galShared.setSize(GAL_W, GAL_H, false);
+  galCells = PRESETS.map((p, i) => {
     const card = document.createElement("button");
-    card.className = "gal-card" + (p.id === keepId ? " on" : "");
-    card.innerHTML = `<img src="${src}" alt=""><div class="cap">${vnLabel(p.label)}<small>${p.label}</small></div>`;
+    card.className = "gal-card" + (p.id === preset.id ? " on" : "");
+    card.dataset.i = i;
+    const cv = document.createElement("canvas");
+    cv.width = GAL_W; cv.height = GAL_H;
+    const cap = document.createElement("div");
+    cap.className = "cap"; cap.innerHTML = `${vnLabel(p.label)}<small>${p.label}</small>`;
+    card.append(cv, cap);
     card.onclick = () => pickPreset(p);
-    card.onmouseenter = () => galPlay(p, card);
-    card.onmouseleave = galStop;
     galGrid.appendChild(card);
-  }
-  preset = PRESETS.find(x => x.id === keepId);
-  CFG = keepCfg;
-  engine.preset(CFG);
-  setHead(keepHead);
+    galIO.observe(card);
+    return { eng: new Engine(null, { ...p.cfg, curve: p.cfg.curve.slice() }, [], galShared),
+             ctx: cv.getContext("2d"), vis: true };
+  });
   galBuilt = true;
 }
-
-/* hover a card → play that motion live in a single shared mini-engine parked over the card */
-let galEngine = null, galCanvas = null, galRAF = 0, galT0 = 0;
-function galPlay(p, card) {
-  if (!galEngine) {
-    galCanvas = document.createElement("canvas");
-    galEngine = new Engine(galCanvas, { ...p.cfg, curve: p.cfg.curve.slice() }, []);
+function galFrame() {
+  galRAF = requestAnimationFrame(galFrame);
+  const now = performance.now();
+  if (now - galLast < 32) return;                 // ~30fps is plenty for thumbnails (rAF already idles a hidden tab)
+  galLast = now;
+  const t = ((now - galT0) / 1000) % SPAN;
+  for (const c of galCells) {
+    if (!c.vis) continue;
+    c.eng.tick(t);
+    galShared.render(c.eng.stage, c.eng.cam);
+    c.ctx.drawImage(galShared.domElement, 0, 0);
   }
-  card.prepend(galCanvas);
-  galEngine.resize();
-  galEngine.preset({ ...p.cfg, curve: p.cfg.curve.slice() });
-  galT0 = performance.now();
-  cancelAnimationFrame(galRAF);
-  const spin = () => {
-    galRAF = requestAnimationFrame(spin);
-    const t = ((performance.now() - galT0) / 1000) % SPAN;
-    galEngine.tick(t); galEngine.paint();
-  };
-  spin();
 }
-function galStop() {
-  cancelAnimationFrame(galRAF); galRAF = 0;
-  galCanvas?.remove();
-}
+function galRun() { if (!galRAF) { galT0 = performance.now(); galLast = 0; galFrame(); } }
+function galHalt() { cancelAnimationFrame(galRAF); galRAF = 0; }
 // gallery <-> editor is wired to browser history so Chrome's Back button returns to the gallery
 // (note: `history` is shadowed by the edit-history array in this module — use window.history)
 function showGallery() {
   if (!galBuilt) buildGallery();
   [...galGrid.children].forEach((c, i) => c.classList.toggle("on", PRESETS[i].id === preset.id));
   gallery.hidden = false;
+  galRun();
 }
 function openGallery() {
   if (window.location.hash === "#editor") window.history.back();   // popstate reveals the gallery
   else showGallery();
 }
 function closeGallery() {
-  galStop();
+  galHalt();
   if (window.location.hash !== "#editor") window.history.pushState(null, "", "#editor");
   gallery.hidden = true;
 }
@@ -1773,7 +1774,7 @@ function pickPreset(p) {
   closeGallery();
 }
 window.addEventListener("popstate", () => {
-  if (window.location.hash === "#editor") { galStop(); gallery.hidden = true; }
+  if (window.location.hash === "#editor") { galHalt(); gallery.hidden = true; }
   else showGallery();
 });
 document.getElementById("gal-close").onclick = closeGallery;
