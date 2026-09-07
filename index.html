@@ -176,11 +176,11 @@
     </div>
   </div>
   <div class="col" id="right">
-    <div class="kicker first">Ảnh</div>
-    <button class="btn" id="add">＋ Thêm ảnh</button>
-    <div class="add-hint">Chọn 1 hay nhiều ảnh (Cmd/Ctrl+A để lấy cả thư mục). Kéo-thả cả thư mục vào đây cũng được.</div>
+    <div class="kicker first">Images</div>
+    <button class="btn" id="add">＋ Add images</button>
+    <div class="add-hint">Pick one or more images (Cmd/Ctrl+A to grab a whole folder). Dropping a folder here works too.</div>
     <input type="file" id="file" accept="image/*" multiple hidden />
-    <div class="meta"><span id="count">0 ảnh</span><button id="wipe">Xoá hết</button></div>
+    <div class="meta"><span id="count">0 images</span><button id="wipe">Clear all</button></div>
     <div id="list"></div>
   </div>
 </div>
@@ -190,11 +190,11 @@
   <div id="time">0:00 / 0:10</div>
   <div id="scrub"><div class="rail"></div><div class="done"></div><div class="knob"></div></div>
   <div id="exp">
-    <button class="btn go" id="export">⤓ Xuất</button>
+    <button class="btn go" id="export">⤓ Export</button>
     <div id="menu">
-      <div class="note">Xuất từ khung preview</div>
-      <button data-fmt="webm">Video — WebM (lặp 10 giây)</button>
-      <button data-fmt="png">Ảnh tĩnh — PNG</button>
+      <div class="note">Export from the preview frame</div>
+      <button data-fmt="webm">Video — WebM (10-second loop)</button>
+      <button data-fmt="png">Still image — PNG</button>
     </div>
   </div>
 </div>
@@ -202,7 +202,7 @@
 <div id="gallery" hidden>
   <div class="gal-head">
     <div class="brand"><svg viewBox="0 0 132 32" xmlns="http://www.w3.org/2000/svg"><path d="M0 31.2323V4.43422H4.4178V0.0164185H9.27253V4.43422H13.7389V13.2213H17.6227V4.43422H22.089V0.0164185H26.9923V4.43422H31.3615V31.2323H26.5068V4.91969H22.5745V13.6582H18.1081V26.8631H13.2534V13.6582H8.78706V4.91969H4.90327V31.2323H0Z" fill="#fff"/><path d="M39.4528 4.4178H43.822V0H66.2508V4.4178H70.6686V26.7819H66.2508V31.2483H43.822V26.7819H39.4528V4.4178ZM44.3075 4.90327V26.2964H65.7654V4.90327H44.3075Z" fill="#fff"/><rect x="50.4406" y="16.1824" width="9.10261" height="4.04561" fill="#fff"/><rect x="48.4178" y="8.09122" width="4.04561" height="4.04561" fill="#fff"/><rect x="58.5318" y="8.0912" width="4.04561" height="4.04561" fill="#fff"/><path d="M83.1777 31.2321V26.8628H78.7599V4.43398H83.1777V0.0161743H96.868V4.43398H101.334V13.658H96.3825V4.91945H83.6631V26.3773H96.3825V22.445H92.0133V18.0272H87.5469V13.221H92.4987V17.5417H101.334V26.8628H96.868V31.2321H83.1777Z" fill="#fff"/><path d="M109.426 31.2321V8.80323H113.843V4.43398H118.213V0.0161743H123.164V4.43398H127.534V8.80323H132V31.2321H127.048V22.445H114.329V31.2321H109.426ZM114.329 17.5417H127.048V9.2887H122.679V4.91945H118.698V9.2887H114.329V17.5417Z" fill="#fff"/></svg></div>
-    <button id="gal-close" title="Đóng thư viện">✕</button>
+    <button id="gal-close" title="Close gallery">✕</button>
   </div>
   <div class="gal-grid" id="gal-grid"></div>
 </div>
@@ -1473,7 +1473,7 @@ function loop() {
 /* ---- left panel ---- */
 const left = document.getElementById("left");
 const countEl = document.getElementById("count");
-const refreshCount = () => { countEl.textContent = `${images.length}/${Math.round(CFG.count || 0)} ảnh`; };
+const refreshCount = () => { countEl.textContent = `${images.length}/${Math.round(CFG.count || 0)} images`; };
 const shown = (v, step) => step < 1 ? Number(v).toFixed(2) : String(Math.round(v));
 const fillTrack = (rng) => {
   const p = (rng.value - rng.min) / (rng.max - rng.min || 1) * 100;
@@ -1492,11 +1492,11 @@ function apply(key, val) {
 
 function buildPanel() {
   left.innerHTML = `<div class="brand">${MOGA_SVG}
-      <button id="tb-gallery" title="Mở thư viện chuyển động">${GRID_SVG}</button></div>
+      <button id="tb-gallery" title="Open motion gallery">${GRID_SVG}</button></div>
     <div class="toolbar">
-      <button id="tb-reset" class="grow" title="Đưa motion về thông số mặc định">↺ Đặt lại</button>
-      <button id="tb-back" title="Hoàn tác bước vừa rồi">◀</button>
-      <button id="tb-next" title="Làm lại">▶</button>
+      <button id="tb-reset" class="grow" title="Reset motion to defaults">↺ Reset</button>
+      <button id="tb-back" title="Undo">◀</button>
+      <button id="tb-next" title="Redo">▶</button>
     </div>`;
   document.getElementById("tb-reset").onclick = resetPreset;
   document.getElementById("tb-back").onclick = () => goHistory(-1);
@@ -1545,8 +1545,8 @@ function buildPanel() {
       numRow(target, f);
     } else if (f.t === "curve") {
       if (f.dur) numRow(target, f.dur);
-      const cap = document.createElement("div"); cap.className = "cap"; cap.textContent = "Nhịp gia tốc";
-      cap.title = "Nhịp tăng/giảm tốc của chuyển động — kéo 2 tay cầm để chỉnh đường cong";
+      const cap = document.createElement("div"); cap.className = "cap"; cap.textContent = "Easing";
+      cap.title = "Acceleration curve of the motion — drag the two handles to shape it";
       target.appendChild(cap);
       const s = document.createElement("select"); s.className = "sel";
       CURVES.forEach((c, i) => {
@@ -1595,13 +1595,13 @@ const collapseRest = () => ALL_SECTIONS.forEach(s => s === PINNED_OPEN ? panelCl
 const panelClosed = new Set();
 collapseRest();
 
-/* ---- friendlier param grouping + hints (Vietnamese) ---- */
+/* ---- friendlier param grouping + hints ---- */
 const SECTION_LABEL = {
-  Motion: "Chuyển động",
-  Layout: "Bố cục",
-  Camera: "Máy quay",
-  Style: "Kiểu hiển thị",
-  Timing: "Nhịp & thời gian",
+  Motion: "Motion",
+  Layout: "Layout",
+  Camera: "Camera",
+  Style: "Style",
+  Timing: "Timing",
 };
 function GROUP_OF(key) {
   if (["direction", "axis", "mode", "face"].includes(key)) return "Motion";
@@ -1612,90 +1612,48 @@ function GROUP_OF(key) {
 }
 function HINT_OF(key) {
   const H = {
-    direction: "Chiều chuyển động (thuận / ngược)",
-    axis: "Trục quay của cả cụm ảnh",
-    mode: "Chạy liên tục hay giật từng bước",
-    face: "Ảnh luôn hướng vào máy quay, hay hướng ra ngoài",
-    mirror: "Lật ngược ảnh theo chiều trái–phải",
-    showBacks: "Hiện hay ẩn các ảnh đang quay mặt sau",
-    count: "Số lượng ảnh hiển thị cùng lúc",
-    tileSize: "Kích thước mỗi tấm ảnh",
-    dist: "Máy quay lùi xa hay tiến gần — xa thì thấy toàn cảnh",
-    lens: "Tiêu cự ống kính: nhỏ = góc rộng, lớn = zoom sát",
-    perspective: "Độ mạnh của hiệu ứng phối cảnh 3D",
-    tiltX: "Nghiêng cụm ảnh lên / xuống (độ)",
-    tiltY: "Xoay cụm ảnh trái / phải (độ)",
-    tiltZ: "Nghiêng cụm ảnh trái / phải theo mặt phẳng màn hình (độ)",
-    fade: "Ảnh ở xa mờ dần về màu nền (%)",
-    corner: "Bo tròn góc ảnh (px)",
-    loop: "Thời gian chạy hết một vòng lặp (giây)",
-    hold: "Dừng lại bao lâu ở mỗi bước (giây)",
-    cycleDeg: "Số độ quay trong mỗi vòng lặp",
-    gridStagger: "Độ trễ giữa các ô — tạo hiệu ứng lan sóng qua lưới",
-    bounceStagger: "Độ trễ nảy giữa các cột",
-    radarPeriod: "Thời gian vệt quét đi hết một vòng (giây)",
-    radarWidth: "Bề rộng vùng sáng của vệt quét",
-    radarBoost: "Độ phóng to / làm nổi khi vệt quét đi qua (%)",
-    parallaxSpeedStep: "Chênh lệch tốc độ giữa các lớp gần / xa",
+    direction: "Direction of travel (forward / reverse)",
+    axis: "Rotation axis of the whole cluster",
+    mode: "Run continuously or step one slot at a time",
+    face: "Tiles always face the camera, or face outward",
+    mirror: "Flip each image left-to-right",
+    showBacks: "Show or hide tiles that are facing away",
+    count: "How many images are on screen at once",
+    tileSize: "Size of each image tile",
+    dist: "Camera distance — further back shows the whole scene",
+    lens: "Focal length: low = wide angle, high = zoomed in",
+    perspective: "Strength of the 3D perspective effect",
+    tiltX: "Tilt the cluster up / down (degrees)",
+    tiltY: "Turn the cluster left / right (degrees)",
+    tiltZ: "Roll the cluster in the screen plane (degrees)",
+    fade: "Distant tiles fade toward the background colour (%)",
+    corner: "Rounded image corners (px)",
+    loop: "Time for one full loop (seconds)",
+    hold: "How long to pause at each step (seconds)",
+    cycleDeg: "Degrees of rotation per loop",
+    gridStagger: "Delay between cells — makes a wave ripple across the grid",
+    bounceStagger: "Bounce delay between columns",
+    radarPeriod: "Time for the sweep to travel once around (seconds)",
+    radarWidth: "Width of the bright sweep band",
+    radarBoost: "How much tiles scale up as the sweep passes (%)",
+    parallaxSpeedStep: "Speed difference between near / far layers",
   };
   if (H[key]) return H[key];
-  if (/(R|r)adius$/.test(key)) return "Bán kính — tăng thì hình to ra";
-  if (/(G|g)ap$/.test(key)) return "Khoảng hở giữa các ảnh";
-  if (/(D|d)epth$/.test(key)) return "Độ đẩy ảnh ra xa theo chiều sâu";
-  if (/(H|h)eight$/.test(key)) return "Chiều cao / biên độ dao động";
-  if (/(W|w)idth$/.test(key)) return "Chiều rộng vùng trải ảnh";
-  if (/(A|a)ngle$/.test(key)) return "Góc nghiêng (độ)";
-  if (/(S|s)cale$/.test(key) || /(B|b)ump$/.test(key)) return "Tỉ lệ phóng to / thu nhỏ (%)";
-  if (/(T|t)urns$/.test(key) || /(W|w)aves$/.test(key)) return "Số vòng xoắn / số con sóng";
-  if (/(S|s)pread$/.test(key)) return "Độ dàn trải rộng";
-  if (/(F|f)an/.test(key)) return "Độ xòe / lệch của chồng ảnh";
+  if (/(R|r)adius$/.test(key)) return "Radius — larger spreads the shape wider";
+  if (/(G|g)ap$/.test(key)) return "Spacing between images";
+  if (/(D|d)epth$/.test(key)) return "How far images are pushed back in depth";
+  if (/(H|h)eight$/.test(key)) return "Height / swing amplitude";
+  if (/(W|w)idth$/.test(key)) return "Width of the area images spread across";
+  if (/(A|a)ngle$/.test(key)) return "Tilt angle (degrees)";
+  if (/(S|s)cale$/.test(key) || /(B|b)ump$/.test(key)) return "Scale up / down (%)";
+  if (/(T|t)urns$/.test(key) || /(W|w)aves$/.test(key)) return "Number of turns / waves";
+  if (/(S|s)pread$/.test(key)) return "How wide it spreads";
+  if (/(F|f)an/.test(key)) return "How much the stack fans out";
   return "";
 }
 
-// Vietnamese labels — preset field labels stay English in code, shown translated in the UI
-const LABEL_VN = {
-  "Direction": "Chiều", "Spin axis": "Trục quay", "Scroll axis": "Trục trôi",
-  "Timing": "Kiểu chạy", "Tiles face": "Hướng ảnh", "Mirror": "Lật ảnh",
-  "Surface": "Bề mặt", "Backface": "Ảnh mặt sau", "Back tiles": "Ảnh mặt sau",
-  "Tile shape": "Dạng ảnh", "Tiles": "Số ảnh", "Covers": "Số ảnh", "Cards": "Số ảnh",
-  "Blades": "Số cánh", "Petals": "Số cánh hoa",
-  "Tile size": "Cỡ ảnh", "Plane size": "Cỡ ảnh", "Plane Size": "Cỡ ảnh",
-  "Sphere radius": "Bán kính cầu", "Ring radius": "Bán kính vòng", "Radius": "Bán kính",
-  "Base radius": "Bán kính gốc", "Ring gap": "Cách giữa vòng", "Ring spread": "Dàn cao vòng",
-  "Orbit radius": "Bán kính quỹ đạo", "Orbit Radius": "Bán kính quỹ đạo",
-  "Gap": "Khoảng cách", "Camera distance": "Khoảng cách máy quay", "Lens": "Ống kính",
-  "Perspective": "Phối cảnh", "Tilt X": "Nghiêng X", "Tilt Z": "Nghiêng Z",
-  "Depth fade %": "Độ mờ xa (%)", "Corner radius": "Bo góc",
-  "Duration": "Thời lượng", "Loop seconds": "Giây / vòng lặp", "Cycle seconds": "Giây / chu kỳ",
-  "Breathe seconds": "Giây / nhịp thở", "Sweep seconds": "Giây / lượt quét",
-  "Bounce seconds": "Giây / nhịp nảy", "Ring drift": "Trôi vòng", "Step hold": "Dừng mỗi bước",
-  "Side angle": "Góc nghiêng cạnh", "Side depth": "Độ sâu cạnh", "Side scale %": "Cỡ ảnh cạnh (%)",
-  "Front bump %": "Phóng ảnh trước (%)", "Flip depth": "Độ sâu lật",
-  "Turns": "Số vòng xoắn", "Height": "Chiều cao", "Waves": "Số sóng",
-  "Trail width": "Bề ngang vệt", "Wave height": "Cao sóng",
-  "Min radius": "Bán kính nhỏ", "Max radius": "Bán kính lớn",
-  "Tunnel depth": "Độ sâu hầm", "Spread": "Độ trải", "Bounce height": "Cao nảy",
-  "Stagger": "Độ trễ lan", "Fall angle": "Góc đổ", "Fan X": "Xòe ngang", "Fan Y": "Xòe dọc",
-  "Stack depth": "Sâu chồng", "Fan angle": "Góc xòe", "Layer speed step": "Chênh tốc lớp",
-  "Row gap": "Cách hàng", "Layer depth": "Sâu lớp",
-  "Back scale %": "Cỡ ảnh sau (%)", "Front scale %": "Cỡ ảnh trước (%)",
-  "Sweep width": "Bề rộng quét", "Sweep boost %": "Độ nổi khi quét (%)",
-  // preset names
-  "Photo Sphere": "Quả cầu ảnh", "Photo Ring": "Vòng tròn ảnh", "Cover Flow": "Cover Flow",
-  "Grid Reveal": "Lưới hiện dần", "Card Flip": "Lật thẻ", "Ticker Loop": "Băng chuyền",
-  "Image Trail": "Vệt ảnh", "Spiral Helix": "Xoắn ốc", "Orbit Rings": "Vòng quỹ đạo",
-  "Pinwheel": "Chong chóng", "Radar Sweep": "Quét radar", "Kaleidoscope Burst": "Kính vạn hoa",
-  "Zoom Tunnel": "Hầm zoom", "Bounce Grid": "Lưới nảy", "Domino Cascade": "Domino đổ",
-  "Deck Shuffle": "Xáo bài", "Parallax Drift": "Trôi nhiều tầng",
-};
-const OPT_VN = {
-  "Forward": "Thuận", "Reverse": "Ngược", "Continuous": "Liên tục", "Stepped": "Từng bước",
-  "Camera": "Vào máy quay", "Outward": "Ra ngoài", "Off": "Tắt", "On": "Bật",
-  "Show": "Hiện", "Hide": "Ẩn", "Flat": "Phẳng", "Curved": "Cong",
-  "Horizontal": "Ngang", "Vertical": "Dọc",
-};
-const vnLabel = (s) => LABEL_VN[s] || s;
-const vnOpt = (s) => OPT_VN[s] || s;
+const vnLabel = (s) => s;   // field labels + preset names are authored in English
+const vnOpt = (s) => s;
 
 /* ---- motion gallery (full-screen picker) ---- */
 const gallery = document.getElementById("gallery");
@@ -1721,7 +1679,7 @@ function buildGallery() {
     const cv = document.createElement("canvas");
     cv.width = GAL_W; cv.height = GAL_H;
     const cap = document.createElement("div");
-    cap.className = "cap"; cap.innerHTML = `${vnLabel(p.label)}<small>${p.label}</small>`;
+    cap.className = "cap"; cap.textContent = p.label;
     card.append(cv, cap);
     card.onclick = () => pickPreset(p);
     galGrid.appendChild(card);
@@ -1838,8 +1796,8 @@ function renderList() {
     row.className = "tile" + (im.on ? "" : " hidden");
     row.innerHTML = `<img src="${im.url}" alt=""><div class="nm">${im.name}</div>
       <div class="acts">
-        <button data-t title="Ẩn / hiện">${im.on ? EYE : EYE_OFF}</button>
-        <button data-x title="Xoá">✕</button>
+        <button data-t title="Hide / show">${im.on ? EYE : EYE_OFF}</button>
+        <button data-x title="Remove">✕</button>
       </div>`;
     row.querySelector("[data-t]").onclick = () => { im.on = !im.on; sync(); renderList(); };
     row.querySelector("[data-x]").onclick = () => { images.splice(i, 1); sync(); renderList(); };
@@ -1891,7 +1849,7 @@ function saveWEBM() {
   if (recording) return;
   const cand = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
   const type = cand.find(t => MediaRecorder.isTypeSupported(t));
-  if (!type) { alert("Trình duyệt này không quay được WebM."); return; }
+  if (!type) { alert("This browser can't record WebM."); return; }
   rec = new MediaRecorder(engine.gl.domElement.captureStream(30), { mimeType: type, videoBitsPerSecond: 12_000_000 });
   blobs = [];
   rec.ondataavailable = (e) => e.data.size && blobs.push(e.data);
