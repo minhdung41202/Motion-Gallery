@@ -235,16 +235,15 @@
 </div>
 
 <script>
-  // Casual gate — deters browsing, not real security (password hash is public in this file).
+  // Casual gate — deters browsing, not real security (password is right here in the file).
+  // Plain compare, not crypto.subtle: the latter is undefined on file:// in Safari, which locked the user out.
   (function () {
-    const HASH = "749ddb1b03f8a6d1d8f29d1a2b89d0685293f8ead5c28ec4211c222a126e8ba1";
+    const PW = "GG2026";
     const gate = document.getElementById("gate");
     if (localStorage.getItem("mg-unlocked") === "1") { gate.remove(); return; }
     const pw = document.getElementById("gate-pw"), err = document.getElementById("gate-err");
-    async function tryUnlock() {
-      const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(pw.value));
-      const hex = [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
-      if (hex === HASH) { localStorage.setItem("mg-unlocked", "1"); gate.remove(); }
+    function tryUnlock() {
+      if (pw.value.trim() === PW) { localStorage.setItem("mg-unlocked", "1"); gate.remove(); }
       else { err.textContent = "Sai mật khẩu"; pw.value = ""; }
     }
     document.getElementById("gate-go").onclick = tryUnlock;
