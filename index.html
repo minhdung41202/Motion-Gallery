@@ -1718,12 +1718,21 @@ function buildGallery() {
   setHead(keepHead);
   galBuilt = true;
 }
-function openGallery() {
+// gallery <-> editor is wired to browser history so Chrome's Back button returns to the gallery
+// (note: `history` is shadowed by the edit-history array in this module — use window.history)
+function showGallery() {
   if (!galBuilt) buildGallery();
   [...galGrid.children].forEach((c, i) => c.classList.toggle("on", PRESETS[i].id === preset.id));
   gallery.hidden = false;
 }
-function closeGallery() { gallery.hidden = true; }
+function openGallery() {
+  if (window.location.hash === "#editor") window.history.back();   // popstate reveals the gallery
+  else showGallery();
+}
+function closeGallery() {
+  if (window.location.hash !== "#editor") window.history.pushState(null, "", "#editor");
+  gallery.hidden = true;
+}
 function pickPreset(p) {
   preset = p;
   CFG = { ...p.cfg, curve: p.cfg.curve.slice() };
@@ -1734,6 +1743,9 @@ function pickPreset(p) {
   pushHistory();
   closeGallery();
 }
+window.addEventListener("popstate", () => {
+  window.location.hash === "#editor" ? (gallery.hidden = true) : showGallery();
+});
 document.getElementById("gal-close").onclick = closeGallery;
 addEventListener("keydown", (e) => { if (e.key === "Escape" && !gallery.hidden) closeGallery(); });
 
@@ -1862,7 +1874,9 @@ function stopRec() { recording = false; try { rec.stop(); } catch {} }
 
 play(true);
 loop();
-openGallery();   // gallery is the home screen; picking a card drops into the editor
+// gallery is the home screen; picking a card drops into the editor
+if (window.location.hash === "#editor") { buildGallery(); gallery.hidden = true; }
+else showGallery();
 </script>
 </body>
 </html>
