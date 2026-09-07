@@ -30,8 +30,9 @@
   #left { border-right: 1px solid var(--line); width: 360px; }
   #right { border-left: 1px solid var(--line); width: 320px; }
 
-  .brand { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; }
+  .brand { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
   .brand svg { height: 19px; width: auto; display: block; }
+  .motion-name { font-size: 20px; font-weight: 600; color: var(--txt); margin-bottom: 20px; }
   .brand #tb-gallery { background: none; border: 0; color: var(--muted); cursor: pointer;
     padding: 5px; display: grid; place-items: center; border-radius: 6px; }
   .brand #tb-gallery:hover { color: var(--txt); background: var(--panel-2); }
@@ -1494,6 +1495,7 @@ function apply(key, val) {
 function buildPanel() {
   left.innerHTML = `<div class="brand">${MOGA_SVG}
       <button id="tb-gallery" title="Open motion gallery">${GRID_SVG}</button></div>
+    <div class="motion-name">${preset.label}</div>
     <div class="toolbar">
       <button id="tb-reset" class="grow" title="Reset motion to defaults">↺ Reset</button>
       <button id="tb-back" title="Undo">◀</button>
