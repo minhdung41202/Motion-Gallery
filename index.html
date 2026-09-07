@@ -30,8 +30,12 @@
   #left { border-right: 1px solid var(--line); width: 360px; }
   #right { border-left: 1px solid var(--line); width: 320px; }
 
-  .brand { display: flex; align-items: center; margin-bottom: 16px; }
+  .brand { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; }
   .brand svg { height: 19px; width: auto; display: block; }
+  .brand #tb-gallery { background: none; border: 0; color: var(--muted); cursor: pointer;
+    padding: 4px; display: grid; place-items: center; border-radius: 6px; }
+  .brand #tb-gallery:hover { color: var(--txt); background: var(--panel-2); }
+  .brand #tb-gallery svg { height: 18px; }
 
   .toolbar { display: flex; gap: 6px; margin-bottom: 16px; }
   .toolbar button { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
@@ -45,6 +49,30 @@
 
   select.sel { width: 100%; background: var(--panel-2); color: var(--txt);
     border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; margin-top: 8px; }
+
+  /* motion gallery overlay */
+  #gallery { position: fixed; inset: 0; z-index: 60; background: var(--bg);
+    display: flex; flex-direction: column; overflow-y: auto; scrollbar-width: none; }
+  #gallery[hidden] { display: none; }
+  #gallery::-webkit-scrollbar { width: 0; height: 0; display: none; }
+  .gal-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center;
+    justify-content: space-between; padding: 18px 28px; border-bottom: 1px solid var(--line); background: var(--bg); }
+  .gal-head .brand { margin: 0; }
+  .gal-head svg { height: 19px; width: auto; display: block; }
+  #gal-close { background: var(--panel-2); border: 1px solid var(--line); color: var(--txt);
+    width: 34px; height: 34px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+  #gal-close:hover { background: var(--line); }
+  .gal-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 14px; padding: 24px 28px; }
+  .gal-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    overflow: hidden; cursor: pointer; padding: 0; color: var(--txt); text-align: left; }
+  .gal-card:hover { border-color: var(--muted); }
+  .gal-card.on { border-color: var(--txt); }
+  .gal-card img { display: block; width: 100%; aspect-ratio: 1 / 1; object-fit: cover; background: #000; }
+  .gal-card .cap { padding: 8px 10px; font-size: 12px; line-height: 1.3; }
+  .gal-card .cap small { display: block; color: var(--muted); font-size: 10px; margin-top: 2px; }
+  @media (max-width: 1280px) { .gal-grid { grid-template-columns: repeat(6, 1fr); } }
+  @media (max-width: 920px)  { .gal-grid { grid-template-columns: repeat(4, 1fr); } }
+  @media (max-width: 560px)  { .gal-grid { grid-template-columns: repeat(2, 1fr); } }
 
   /* Lightroom-style collapsible sections */
   .sec { border-top: 1px solid var(--line); }
@@ -198,6 +226,14 @@
   </div>
 </div>
 
+<div id="gallery" hidden>
+  <div class="gal-head">
+    <div class="brand"><svg viewBox="0 0 132 32" xmlns="http://www.w3.org/2000/svg"><path d="M0 31.2323V4.43422H4.4178V0.0164185H9.27253V4.43422H13.7389V13.2213H17.6227V4.43422H22.089V0.0164185H26.9923V4.43422H31.3615V31.2323H26.5068V4.91969H22.5745V13.6582H18.1081V26.8631H13.2534V13.6582H8.78706V4.91969H4.90327V31.2323H0Z" fill="#fff"/><path d="M39.4528 4.4178H43.822V0H66.2508V4.4178H70.6686V26.7819H66.2508V31.2483H43.822V26.7819H39.4528V4.4178ZM44.3075 4.90327V26.2964H65.7654V4.90327H44.3075Z" fill="#fff"/><rect x="50.4406" y="16.1824" width="9.10261" height="4.04561" fill="#fff"/><rect x="48.4178" y="8.09122" width="4.04561" height="4.04561" fill="#fff"/><rect x="58.5318" y="8.0912" width="4.04561" height="4.04561" fill="#fff"/><path d="M83.1777 31.2321V26.8628H78.7599V4.43398H83.1777V0.0161743H96.868V4.43398H101.334V13.658H96.3825V4.91945H83.6631V26.3773H96.3825V22.445H92.0133V18.0272H87.5469V13.221H92.4987V17.5417H101.334V26.8628H96.868V31.2321H83.1777Z" fill="#fff"/><path d="M109.426 31.2321V8.80323H113.843V4.43398H118.213V0.0161743H123.164V4.43398H127.534V8.80323H132V31.2321H127.048V22.445H114.329V31.2321H109.426ZM114.329 17.5417H127.048V9.2887H122.679V4.91945H118.698V9.2887H114.329V17.5417Z" fill="#fff"/></svg></div>
+    <button id="gal-close" title="Đóng thư viện">✕</button>
+  </div>
+  <div class="gal-grid" id="gal-grid"></div>
+</div>
+
 <script>
   // Casual gate — deters browsing, not real security (password hash is public in this file).
   (function () {
@@ -225,6 +261,8 @@
 import * as THREE from "three";  // three.js r0.160 — MIT License, © three.js authors
 
 const MOGA_SVG = `<svg viewBox="0 0 132 32" xmlns="http://www.w3.org/2000/svg"><path d="M0 31.2323V4.43422H4.4178V0.0164185H9.27253V4.43422H13.7389V13.2213H17.6227V4.43422H22.089V0.0164185H26.9923V4.43422H31.3615V31.2323H26.5068V4.91969H22.5745V13.6582H18.1081V26.8631H13.2534V13.6582H8.78706V4.91969H4.90327V31.2323H0Z" fill="#fff"/><path d="M39.4528 4.4178H43.822V0H66.2508V4.4178H70.6686V26.7819H66.2508V31.2483H43.822V26.7819H39.4528V4.4178ZM44.3075 4.90327V26.2964H65.7654V4.90327H44.3075Z" fill="#fff"/><rect x="50.4406" y="16.1824" width="9.10261" height="4.04561" fill="#fff"/><rect x="48.4178" y="8.09122" width="4.04561" height="4.04561" fill="#fff"/><rect x="58.5318" y="8.0912" width="4.04561" height="4.04561" fill="#fff"/><path d="M83.1777 31.2321V26.8628H78.7599V4.43398H83.1777V0.0161743H96.868V4.43398H101.334V13.658H96.3825V4.91945H83.6631V26.3773H96.3825V22.445H92.0133V18.0272H87.5469V13.221H92.4987V17.5417H101.334V26.8628H96.868V31.2321H83.1777Z" fill="#fff"/><path d="M109.426 31.2321V8.80323H113.843V4.43398H118.213V0.0161743H123.164V4.43398H127.534V8.80323H132V31.2321H127.048V22.445H114.329V31.2321H109.426ZM114.329 17.5417H127.048V9.2887H122.679V4.91945H118.698V9.2887H114.329V17.5417Z" fill="#fff"/></svg>`;
+
+const GRID_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="10" y1="4" x2="10" y2="20"/></svg>`;
 
 const TAU = Math.PI * 2;
 const clamp = (v, lo, hi) => v < lo ? lo : v > hi ? hi : v;
@@ -1495,34 +1533,17 @@ function apply(key, val) {
 }
 
 function buildPanel() {
-  left.innerHTML = `<div class="brand">${MOGA_SVG}</div>
+  left.innerHTML = `<div class="brand">${MOGA_SVG}
+      <button id="tb-gallery" title="Mở thư viện chuyển động">${GRID_SVG}</button></div>
     <div class="toolbar">
       <button id="tb-reset" class="grow" title="Đưa motion về thông số mặc định">↺ Đặt lại</button>
       <button id="tb-back" title="Hoàn tác bước vừa rồi">◀</button>
       <button id="tb-next" title="Làm lại">▶</button>
-    </div>
-    <div class="kicker first">Kiểu chuyển động</div>`;
+    </div>`;
   document.getElementById("tb-reset").onclick = resetPreset;
   document.getElementById("tb-back").onclick = () => goHistory(-1);
   document.getElementById("tb-next").onclick = () => goHistory(1);
-  const sel = document.createElement("select");
-  sel.className = "sel";
-  for (const p of PRESETS) {
-    const o = document.createElement("option");
-    o.value = p.id; o.textContent = vnLabel(p.label);
-    if (p.id === preset.id) o.selected = true;
-    sel.appendChild(o);
-  }
-  sel.onchange = () => {
-    preset = PRESETS.find(p => p.id === sel.value);
-    CFG = { ...preset.cfg };
-    engine.preset(CFG);
-    setHead(0);
-    collapseRest();   // switching motion → tidy up (collapse all but the pinned section)
-    buildPanel();
-    pushHistory();
-  };
-  left.appendChild(sel);
+  document.getElementById("tb-gallery").onclick = openGallery;
 
   const numRow = (target, d) => {
     const row = document.createElement("div"); row.className = "row";
@@ -1717,6 +1738,47 @@ const OPT_VN = {
 };
 const vnLabel = (s) => LABEL_VN[s] || s;
 const vnOpt = (s) => OPT_VN[s] || s;
+
+/* ---- motion gallery (full-screen picker) ---- */
+const gallery = document.getElementById("gallery");
+const galGrid = document.getElementById("gal-grid");
+let galBuilt = false;
+
+function buildGallery() {
+  const keepId = preset.id, keepCfg = { ...CFG, curve: CFG.curve.slice() }, keepHead = head;
+  galGrid.innerHTML = "";
+  for (const p of PRESETS) {
+    engine.preset({ ...p.cfg, curve: p.cfg.curve.slice() });
+    engine.tick(2.6);
+    engine.paint();
+    const src = engine.gl.domElement.toDataURL("image/jpeg", 0.72);
+    const card = document.createElement("button");
+    card.className = "gal-card" + (p.id === keepId ? " on" : "");
+    card.innerHTML = `<img src="${src}" alt=""><div class="cap">${vnLabel(p.label)}<small>${p.label}</small></div>`;
+    card.onclick = () => pickPreset(p);
+    galGrid.appendChild(card);
+  }
+  preset = PRESETS.find(x => x.id === keepId);
+  CFG = keepCfg;
+  engine.preset(CFG);
+  setHead(keepHead);
+  galBuilt = true;
+}
+function openGallery() { if (!galBuilt) buildGallery(); gallery.hidden = false; }
+function closeGallery() { gallery.hidden = true; }
+function pickPreset(p) {
+  preset = p;
+  CFG = { ...p.cfg, curve: p.cfg.curve.slice() };
+  engine.preset(CFG);
+  setHead(0);
+  collapseRest();
+  buildPanel();
+  pushHistory();
+  closeGallery();
+}
+document.getElementById("gal-close").onclick = closeGallery;
+addEventListener("keydown", (e) => { if (e.key === "Escape" && !gallery.hidden) closeGallery(); });
+
 buildPanel();
 
 /* ---- images ---- */
