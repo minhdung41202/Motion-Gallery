@@ -32,6 +32,7 @@
 
   .brand { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; }
   .brand svg { height: 19px; width: auto; display: block; }
+  .brand .motion-name { font-size: 19px; font-weight: 600; color: var(--txt); letter-spacing: -.01em; }
   .brand #tb-gallery { background: none; border: 0; color: var(--muted); cursor: pointer;
     padding: 5px; display: grid; place-items: center; border-radius: 6px; }
   .brand #tb-gallery:hover { color: var(--txt); background: var(--panel-2); }
@@ -214,8 +215,6 @@
 
 <script type="module">
 import * as THREE from "three";  // three.js r0.160 — MIT License, © three.js authors
-
-const MOGA_SVG = `<svg viewBox="0 0 132 32" xmlns="http://www.w3.org/2000/svg"><path d="M0 31.2323V4.43422H4.4178V0.0164185H9.27253V4.43422H13.7389V13.2213H17.6227V4.43422H22.089V0.0164185H26.9923V4.43422H31.3615V31.2323H26.5068V4.91969H22.5745V13.6582H18.1081V26.8631H13.2534V13.6582H8.78706V4.91969H4.90327V31.2323H0Z" fill="#fff"/><path d="M39.4528 4.4178H43.822V0H66.2508V4.4178H70.6686V26.7819H66.2508V31.2483H43.822V26.7819H39.4528V4.4178ZM44.3075 4.90327V26.2964H65.7654V4.90327H44.3075Z" fill="#fff"/><rect x="50.4406" y="16.1824" width="9.10261" height="4.04561" fill="#fff"/><rect x="48.4178" y="8.09122" width="4.04561" height="4.04561" fill="#fff"/><rect x="58.5318" y="8.0912" width="4.04561" height="4.04561" fill="#fff"/><path d="M83.1777 31.2321V26.8628H78.7599V4.43398H83.1777V0.0161743H96.868V4.43398H101.334V13.658H96.3825V4.91945H83.6631V26.3773H96.3825V22.445H92.0133V18.0272H87.5469V13.221H92.4987V17.5417H101.334V26.8628H96.868V31.2321H83.1777Z" fill="#fff"/><path d="M109.426 31.2321V8.80323H113.843V4.43398H118.213V0.0161743H123.164V4.43398H127.534V8.80323H132V31.2321H127.048V22.445H114.329V31.2321H109.426ZM114.329 17.5417H127.048V9.2887H122.679V4.91945H118.698V9.2887H114.329V17.5417Z" fill="#fff"/></svg>`;
 
 const GRID_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="10" y1="4" x2="10" y2="20"/></svg>`;
 
@@ -1492,7 +1491,7 @@ function apply(key, val) {
 }
 
 function buildPanel() {
-  left.innerHTML = `<div class="brand">${MOGA_SVG}
+  left.innerHTML = `<div class="brand"><span class="motion-name">${preset.label}</span>
       <button id="tb-gallery" title="Open motion gallery">${GRID_SVG}</button></div>
     <div class="toolbar">
       <button id="tb-reset" class="grow" title="Reset motion to defaults">↺ Reset</button>
