@@ -24,7 +24,7 @@
     font: 13px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
   button { font: inherit; color: inherit; cursor: pointer; }
 
-  #app { display: flex; height: calc(100% - 60px); }
+  #app { display: flex; height: calc(100% - 74px); }
   .col { width: 300px; padding: 16px; overflow-y: auto; flex-shrink: 0; scrollbar-width: none; -ms-overflow-style: none; }
   .col::-webkit-scrollbar { width: 0; height: 0; display: none; }
   #left { border-right: 1px solid var(--line); width: 360px; }
@@ -33,9 +33,9 @@
   .brand { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; }
   .brand svg { height: 19px; width: auto; display: block; }
   .brand #tb-gallery { background: none; border: 0; color: var(--muted); cursor: pointer;
-    padding: 4px; display: grid; place-items: center; border-radius: 6px; }
+    padding: 5px; display: grid; place-items: center; border-radius: 6px; }
   .brand #tb-gallery:hover { color: var(--txt); background: var(--panel-2); }
-  .brand #tb-gallery svg { height: 18px; }
+  .brand #tb-gallery svg { height: 23px; }
 
   .toolbar { display: flex; gap: 6px; margin-bottom: 16px; }
   .toolbar button { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
@@ -147,15 +147,16 @@
   .tile button:hover { color: var(--txt); background: var(--line); }
   .tile button svg { display: block; }
 
-  #bar { height: 64px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 20px; padding: 0 18px; }
+  #bar { height: 74px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 24px; padding: 0 20px; }
   #pp { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line);
     background: var(--panel-2); display: grid; place-items: center; flex-shrink: 0; }
   #time { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; min-width: 96px; flex-shrink: 0; }
-  #scrub { position: relative; flex: 1; height: 34px; cursor: pointer; }
-  #scrub .rail { position: absolute; left: 0; right: 0; bottom: 8px; height: 3px; background: var(--line); border-radius: 2px; }
-  #scrub .done { position: absolute; left: 0; bottom: 8px; height: 3px; background: var(--accent); border-radius: 2px; }
-  #scrub .knob { position: absolute; bottom: 9px; width: 3px; height: 20px; transform: translate(-50%, 50%); background: var(--txt); border-radius: 2px; }
-  #scrub .mk { position: absolute; bottom: 13px; top: auto; font-size: 12px; color: var(--muted); transform: translateX(-50%); }
+  #scrub { position: relative; flex: 1; height: 42px; cursor: pointer; }
+  #scrub .rail { position: absolute; left: 0; right: 0; bottom: 12px; height: 3px; background: var(--line); border-radius: 2px; }
+  #scrub .done { position: absolute; left: 0; bottom: 12px; height: 3px; background: var(--accent); border-radius: 2px; }
+  #scrub .knob { position: absolute; bottom: 6.5px; width: 14px; height: 14px; border-radius: 50%;
+    transform: translateX(-50%); background: #fff; }
+  #scrub .mk { position: absolute; bottom: 24px; top: auto; font-size: 12px; color: var(--muted); transform: translateX(-50%); }
   #exp { position: relative; flex-shrink: 0; }
   #exp .btn { width: auto; margin: 0; padding: 9px 16px; display: flex; align-items: center; gap: 8px; }
   #menu { position: absolute; right: 0; bottom: 46px; min-width: 200px; display: none;
